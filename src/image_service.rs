@@ -34,24 +34,6 @@ pub struct Blur {
     pub sigma: u8,
 }
 
-#[test]
-fn test_url_encode() {
-    let img = CachedImage {
-        src: "test.jpg".to_string(),
-        option: CachedImageOption::Resize(Resize {
-            quality: 75,
-            width: 100,
-            height: 100,
-        }),
-    };
-
-    let encoded = img.get_url_encoded();
-    let decoded: CachedImage = CachedImage::from_url_encoded(&encoded);
-
-    dbg!(encoded);
-    assert!(img == decoded);
-}
-
 #[cfg(feature = "ssr")]
 #[derive(Debug)]
 pub enum CreateImageError {
@@ -62,27 +44,8 @@ pub enum CreateImageError {
 
 impl CachedImage {
     pub fn get_file_path(&self) -> String {
-        // todo: ensure that src has leading slash.
-        let path = match self.option {
-            CachedImageOption::Resize(Resize {
-                quality,
-                width,
-                height,
-            }) => {
-                format!("cache/resize/q{quality}_w{width}_h{height}",)
-            }
-            CachedImageOption::Blur(Blur {
-                height,
-                width,
-                svg_height,
-                svg_width,
-                sigma,
-            }) => {
-                format!("cache/blur/w{width}_h{height}_sh{svg_height}_sw{svg_width}_s{sigma}")
-            }
-        };
-
-        let mut path = path_from_segments(vec![&path, &self.src]);
+        let encode = serde_qs::to_string(&self).unwrap();
+        let mut path = path_from_segments(vec!["cache", &encode, &self.src]);
 
         if let CachedImageOption::Resize { .. } = self.option {
             path.set_extension("webp");
@@ -91,6 +54,11 @@ impl CachedImage {
         };
 
         path.as_path().to_string_lossy().to_string()
+    }
+
+    pub fn from_file_path(path: &str) -> Option<Self> {
+        path.split("/")
+            .find_map(|encoded| serde_qs::from_str(encoded).ok())
     }
 
     pub fn get_file_path_from_root(&self, root: &str) -> String {
@@ -105,10 +73,10 @@ impl CachedImage {
         format!("{}?{}", image_cache_path, params)
     }
 
-    pub fn from_url_encoded(url: &str) -> CachedImage {
+    pub fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
         let url = url.split("?").filter(|s| *s != "?").last().unwrap_or(url);
         let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(&url);
-        result.expect("Failed to Cache Image Url")
+        result
     }
 
     // Returns the relative path as a string of the created image from the root.
@@ -217,44 +185,22 @@ where
 
     let svg = format!(
         r#"
-        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100%" height="100%" viewBox="0 0 {svg_width} {svg_height}" preserveAspectRatio="none">
-            <filter id="a" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"> 
-                <feGaussianBlur stdDeviation="{sigma}" edgeMode="duplicate"/> 
-                <feComponentTransfer>
-                    <feFuncA type="discrete" tableValues="1 1"/> 
-                </feComponentTransfer>
-            </filter> 
-            <image filter="url(#a)" x="0" y="0" height="100%" width="100%" href="{uri}"/>
-         </svg>
-         "#,
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100%" height="100%" viewBox="0 0 {svg_width} {svg_height}" preserveAspectRatio="none">
+    <filter id="a" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"> 
+        <feGaussianBlur stdDeviation="{sigma}" edgeMode="duplicate"/> 
+        <feComponentTransfer>
+            <feFuncA type="discrete" tableValues="1 1"/> 
+        </feComponentTransfer> 
+    </filter> 
+    <image filter="url(#a)" x="0" y="0" height="100%" width="100%" href="{uri}"/>
+</svg>
+"#,
     );
-
-    // let svg_encoded = general_purpose::STANDARD.encode(svg.as_bytes());
-
-    // let style= format!(
-    //     "color:transparent;max-width:100%;height:auto;background-size:cover;background-position:50% 50%;background-repeat:no-repeat;background-image: url('data:image/svg+xml;base64,{}');",
-    //     svg_encoded
-    // );
 
     Ok(svg)
 }
 
-#[test]
-fn test_encode() {
-    let result = encode_blur(
-        "test.jpg",
-        Blur {
-            width: 25,
-            height: 25,
-            svg_height: 100,
-            svg_width: 100,
-            sigma: 20,
-        },
-    );
-    println!("{}", result.unwrap());
-}
-
-// #[cfg(feature = "ssr")]
+#[cfg(feature = "ssr")]
 fn path_from_segments(segments: Vec<&str>) -> std::path::PathBuf {
     segments
         .into_iter()
@@ -282,4 +228,78 @@ where
         Some(_) => Result::Ok(()),
         None => Result::Ok(()),
     }
+}
+
+#[test]
+fn test_url_encode() {
+    let img = CachedImage {
+        src: "test.jpg".to_string(),
+        option: CachedImageOption::Resize(Resize {
+            quality: 75,
+            width: 100,
+            height: 100,
+        }),
+    };
+
+    let encoded = img.get_url_encoded();
+    let decoded: CachedImage = CachedImage::from_url_encoded(&encoded).unwrap();
+
+    dbg!(encoded);
+    assert!(img == decoded);
+}
+#[test]
+fn test_encode() {
+    let result = encode_blur(
+        "test.jpg",
+        Blur {
+            width: 25,
+            height: 25,
+            svg_height: 100,
+            svg_width: 100,
+            sigma: 20,
+        },
+    );
+    println!("{}", result.unwrap());
+}
+
+#[test]
+fn test_file_path() {
+    let spec = CachedImage {
+        src: "test.jpg".to_string(),
+        option: CachedImageOption::Blur(Blur {
+            width: 25,
+            height: 25,
+            svg_height: 100,
+            svg_width: 100,
+            sigma: 20,
+        }),
+    };
+
+    let file_path = spec.get_file_path();
+
+    dbg!(spec.get_file_path());
+
+    let result = CachedImage::from_file_path(&file_path).unwrap();
+
+    assert_eq!(spec, result);
+}
+
+#[test]
+fn test_save_svg() {
+    let spec = CachedImage {
+        src: "test.jpg".to_string(),
+        option: CachedImageOption::Blur(Blur {
+            width: 25,
+            height: 25,
+            svg_height: 100,
+            svg_width: 100,
+            sigma: 20,
+        }),
+    };
+
+    let file_path = spec.get_file_path();
+
+    let result = cache_image(spec.option, "test.jpg".to_string(), file_path);
+
+    assert!(result.is_ok());
 }
