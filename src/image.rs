@@ -1,4 +1,3 @@
-use crate::get_app_images::*;
 use crate::image_service::*;
 use crate::provider::ImageCacheContext;
 
@@ -48,7 +47,7 @@ pub fn Image(
 
     // Load images into context for blur generation.
     #[cfg(feature = "ssr")]
-    if let Some(context) = use_context::<ImageContext>(cx) {
+    if let Some(context) = use_context::<crate::get_app_images::ImageContext>(cx) {
         let mut images = context.0.borrow_mut();
         images.push(opt_image.clone());
         images.push(blur_image.clone());

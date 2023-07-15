@@ -1,5 +1,3 @@
-use std::io::Error;
-
 use serde::{Deserialize, Serialize};
 
 /**
@@ -39,7 +37,7 @@ pub struct Blur {
 pub enum CreateImageError {
     ImageError(image::ImageError),
     JoinError(tokio::task::JoinError),
-    IOError(Error),
+    IOError(std::io::Error),
 }
 
 impl CachedImage {
@@ -200,7 +198,6 @@ where
     Ok(svg)
 }
 
-#[cfg(feature = "ssr")]
 fn path_from_segments(segments: Vec<&str>) -> std::path::PathBuf {
     segments
         .into_iter()
