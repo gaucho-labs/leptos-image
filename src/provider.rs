@@ -2,10 +2,13 @@ use crate::{get_app_images, image_service::CachedImage};
 use leptos::*;
 use std::{collections::HashMap, rc::Rc};
 
+#[derive(Clone, Debug)]
+pub struct ImageCacheContext(pub(crate) Rc<HashMap<CachedImage, String>>);
+
 pub fn provide_images<IV>(
     root: String,
     app_fn: impl Fn(leptos::Scope) -> IV + 'static,
-) -> ImageContext
+) -> ImageCacheContext
 where
     IV: leptos::IntoView + 'static,
 {
@@ -34,8 +37,5 @@ where
         .filter_map(|(img, path)| std::fs::read_to_string(path).ok().map(|svg| (img, svg)))
         .collect();
 
-    ImageContext(Rc::new(image_data))
+    ImageCacheContext(Rc::new(image_data))
 }
-
-#[derive(Clone, Debug)]
-pub struct ImageContext(pub(crate) Rc<HashMap<CachedImage, String>>);

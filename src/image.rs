@@ -1,20 +1,13 @@
 use crate::get_app_images::*;
 use crate::image_service::*;
+use crate::provider::ImageCacheContext;
 
-use leptos::html::Canvas;
 use leptos::*;
 use leptos_meta::Link;
-use wasm_bindgen::JsCast;
 
 /**
  * Image component for rendering optimized static images.
  */
-
-// enum ImageOptions {
-//     Fixed { width: u32, height: u32 },
-//     Single(u32, u32),
-//     Multi(Vec<(u32, u32)>),
-// }
 
 #[component]
 pub fn Image(
@@ -61,80 +54,68 @@ pub fn Image(
         images.push(blur_image.clone());
     }
 
+    let placeholder_svg = {
+        use_context::<ImageCacheContext>(cx)
+            .map(|context| context.0)
+            .and_then(|map| {
+                let maybe = map.get(&blur_image);
+                maybe.map(|link| link.clone())
+            })
+    };
+
     let blur_image = blur_image.get_url_encoded();
     let opt_image = opt_image.get_url_encoded();
 
     if blur {
-        view! { cx, <CacheImage blur_image opt_image alt class priority/> }.into_view(cx)
+        let svg = {
+            if let Some(svg_data) = placeholder_svg {
+                SvgImage::InMemory(svg_data)
+            } else {
+                SvgImage::Request(blur_image)
+            }
+        };
+        view! { cx, <CacheImage svg opt_image alt class priority/> }.into_view(cx)
     } else {
         view! { cx, <img src=opt_image alt=alt class=class/> }.into_view(cx)
     }
 }
 
+enum SvgImage {
+    InMemory(String),
+    Request(String),
+}
+
 #[component]
 fn CacheImage(
     cx: Scope,
-    #[prop(into)] blur_image: String,
+    svg: SvgImage,
     #[prop(into)] opt_image: String,
     #[prop(into, optional)] alt: String,
     #[prop(into, optional)] class: String,
     priority: bool,
 ) -> impl IntoView {
-    #[allow(unused_variables)]
-    let (image, set_image) = create_signal(cx, blur_image);
+    use base64::{engine::general_purpose, Engine as _};
 
-    // let canvas_ref = create_node_ref::<Canvas>(cx);
-
-    // use web_sys::HtmlCanvasElement;
-    // use web_sys::ImageData;
-    // {
-    //     let canvas = canvas_ref.get().unwrap();
-    //     canvas.set_width(100);
-    //     canvas.set_height(100);
-    //     let context = canvas
-    //         .get_context("2d")
-    //         .ok()
-    //         .flatten()
-    //         .expect("canvas to have context")
-    //         .unchecked_into::<web_sys::CanvasRenderingContext2d>();
-    //     // let image_data = ImageData::new_with_u8_clamped_array();
-
-    //     let new_data = canvas.to_data_url();
-    // };
-
-    #[cfg(feature = "hydrate")]
-    create_effect(cx, {
-        let opt_image = opt_image.clone();
-        move |_| {
-            use wasm_bindgen::prelude::Closure;
-            use wasm_bindgen::JsCast;
-            use web_sys::HtmlImageElement;
-
-            let image_element = HtmlImageElement::new().expect("Failed to create image element");
-            image_element.set_src(&opt_image);
-
-            if image_element.complete() {
-                set_image.set(opt_image.clone());
-            } else {
-                let update_image = Closure::<dyn FnMut()>::new({
-                    let opt_image = opt_image.clone();
-                    move || {
-                        set_image.set(opt_image.clone());
-                    }
-                });
-                let as_js_func = update_image.as_ref().unchecked_ref();
-
-                image_element
-                    .add_event_listener_with_callback("load", as_js_func)
-                    .unwrap_or_else(|e| {
-                        error!("Failed to set image load listener {:?}", e);
-                    });
-                update_image.forget();
+    let style = {
+        let background_image = match svg {
+            SvgImage::InMemory(svg_data) => {
+                let svg_encoded = general_purpose::STANDARD.encode(svg_data.as_bytes());
+                format!("url('data:image/svg+xml;base64,{svg_encoded}')")
             }
-        }
-    });
+            SvgImage::Request(svg_url) => {
+                format!("url('{}')", svg_url)
+            }
+        };
+        let style= format!(
+        "color:transparent;max-width:100%;height:auto;background-size:cover;background-position:50% 50%;background-repeat:no-repeat;background-image:{background_image}');",
+        );
 
-    // No script fallback being on the bottom should take precedence over the blur image.
+        style
+    };
+
+    // let (image, set_image) = create_signal(cx, blur_image);
+    let (style, set_style) = create_signal(cx, style);
+
     view! { cx,
         {if priority {
             view! { cx, <Link rel="preload" as_="image" href=opt_image.clone()/> }
@@ -143,6 +124,12 @@ fn CacheImage(
             view! { cx,  }
                 .into_view(cx)
         }}
-        <img src=move || image.get() alt=alt.clone() class=class.clone()/>
+        <img
+            src=opt_image
+            alt=alt.clone()
+            class=class.clone()
+            style=move || style.get()
+            on:load=move |_| set_style.set("".into())
+        />
     }
 }
