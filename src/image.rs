@@ -1,4 +1,5 @@
-use crate::image_service::*;
+use crate::introspect::IntrospectImageContext;
+use crate::optimizer::*;
 use crate::provider::ImageCacheContext;
 
 use leptos::*;
@@ -6,23 +7,31 @@ use leptos_meta::Link;
 
 /**
  * Image component for rendering optimized static images.
+ * Images MUST be static. Will not work with dynamic images.
  */
 
 #[component]
 pub fn Image(
     cx: Scope,
     #[prop(into)] src: String,
-    width: u32,
+    // Resize image height, but will still maintain the same aspect ratio.
     height: u32,
+    // Resize image width, but will still maintain the same aspect ratio.
+    width: u32,
+    // Image quality. 0-100.
     #[prop(default = 75_u8)] quality: u8,
+    // Will add blur image to head if true.
     #[prop(default = false)] blur: bool,
     // Will add preload link to head if true.
     #[prop(default = false)] priority: bool,
+    // Image alt text.
     #[prop(into, optional)] alt: String,
+    // Style class for image.
     #[prop(into, optional)] class: String,
 ) -> impl IntoView {
     if src.starts_with("http") {
         debug_warn!("Image component does not support external images.");
+        return view! { cx, <img src=src alt=alt class=class/> }.into_view(cx);
     }
 
     let blur_image = {
@@ -52,10 +61,12 @@ pub fn Image(
     // Load images into context for blur generation.
     // Happens on server start.
     #[cfg(feature = "ssr")]
-    if let Some(context) = use_context::<crate::cache::ImageContext>(cx) {
+    if let Some(context) = use_context::<IntrospectImageContext>(cx) {
         let mut images = context.0.borrow_mut();
         images.push(opt_image.clone());
-        images.push(blur_image.clone());
+        if blur {
+            images.push(blur_image.clone());
+        }
     }
 
     // Check to see if we have svg literal already loaded in memory
@@ -135,7 +146,8 @@ fn CacheImage(
             alt=alt.clone()
             class=class.clone()
             style=move || style.get()
-            on:load=move |_| set_style.set("".into())
+            // This is non-deterministic?
+            // on:load=move |_| set_style.set("".into())
         />
     }
 }

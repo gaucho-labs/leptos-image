@@ -48,7 +48,7 @@ fn HomePage(cx: Scope) -> impl IntoView {
         <button on:click=on_click>"Click Me: " {count}</button>
         <div>
             <Image
-                src="/test.jpg"
+                src="/cute_ferris.png"
                 width=500
                 height=500
                 quality=85

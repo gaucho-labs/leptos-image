@@ -114,7 +114,7 @@ impl CachedImage {
         } else {
             let task = tokio::task::spawn_blocking({
                 let config = self.clone();
-                move || cache_image(config.option, absolute_src_path, save_path)
+                move || create_optimized_image(config.option, absolute_src_path, save_path)
             });
 
             match task.await {
@@ -127,7 +127,7 @@ impl CachedImage {
 }
 
 #[cfg(feature = "ssr")]
-fn cache_image<P>(
+fn create_optimized_image<P>(
     config: CachedImageOption,
     source_path: P,
     save_path: P,
@@ -158,7 +158,7 @@ where
             std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
         }
         CachedImageOption::Blur(blur) => {
-            let svg = encode_blur(source_path, blur)?;
+            let svg = create_image_blur(source_path, blur)?;
             create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
             std::fs::write(save_path, &*svg).map_err(|e| CreateImageError::IOError(e))
         }
@@ -166,7 +166,7 @@ where
 }
 
 #[cfg(feature = "ssr")]
-fn encode_blur<P>(source_path: P, blur: Blur) -> Result<String, CreateImageError>
+fn create_image_blur<P>(source_path: P, blur: Blur) -> Result<String, CreateImageError>
 where
     P: AsRef<std::path::Path> + AsRef<std::ffi::OsStr>,
 {
@@ -270,7 +270,7 @@ fn test_url_encode() {
 }
 #[test]
 fn test_encode() {
-    let result = encode_blur(
+    let result = create_image_blur(
         "test.jpg",
         Blur {
             width: 25,
@@ -320,7 +320,7 @@ fn test_save_svg() {
 
     let file_path = spec.get_file_path();
 
-    let result = cache_image(spec.option, "test.jpg".to_string(), file_path);
+    let result = create_optimized_image(spec.option, "test.jpg".to_string(), file_path);
 
     assert!(result.is_ok());
 }
