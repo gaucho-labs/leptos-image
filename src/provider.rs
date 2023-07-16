@@ -7,59 +7,55 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+// CacheImage -> Blur Image SVG data (literal, not file_path).
 #[derive(Clone, Debug)]
 pub(crate) struct ImageCacheContext(pub(crate) Rc<HashMap<CachedImage, String>>);
 
-pub(crate) fn set_image_cache(image: CachedImage, path: String) {
-    IMAGE_CACHE.write().unwrap().insert(image, path);
+pub(crate) fn add_image_cache(images: Vec<(CachedImage, String)>) {
+    let mut cache = IMAGE_CACHE.write().unwrap();
+    for (image, path) in images {
+        cache.insert(image, path);
+    }
 }
 
 lazy_static! {
-    pub(crate) static ref IMAGE_CACHE: Arc<RwLock<HashMap<CachedImage, String>>> =
-        Arc::new(RwLock::new(HashMap::new()));
+    pub(crate) static ref IMAGE_CACHE: Arc<RwLock<HashMap<CachedImage, String>>> = {
+        let options = leptos_config::get_config_from_env().unwrap();
+        let root = options.leptos_options.site_root.clone();
+
+        log!("Initializing image cache with root: {}", &root);
+
+        let path = format!("{root}/cache/image/**/*");
+        let files = glob::glob(&path)
+            .expect("Failed to read image files")
+            .filter_map(|file| file.ok())
+            .collect::<Vec<_>>();
+
+        log!("Found image files: {:?}", files);
+        let images = files
+            .into_iter()
+            .filter_map(|file| {
+                let path = file.to_str().unwrap().to_string();
+                CachedImage::from_file_path(&path).map(|img| (img, path))
+            })
+            .filter_map(|(img, path)| std::fs::read_to_string(path).ok().map(|svg| (img, svg)))
+            .collect::<HashMap<_, _>>();
+        Arc::new(RwLock::new(images))
+    };
 }
 
 #[allow(unused_braces)]
 #[component]
 pub fn ImageProvider(cx: Scope, children: Children) -> impl IntoView {
-    let context = IMAGE_CACHE.read().unwrap().clone();
-    provide_context(cx, ImageCacheContext(Rc::new(context)));
+    let context = IMAGE_CACHE.read();
+
+    if let Ok(context) = context {
+        provide_context(cx, ImageCacheContext(Rc::new(context.clone())));
+    } else {
+        error!("Failed to read image cache");
+    }
+
     view! {cx,
         {children(cx)}
     }
 }
-
-// pub fn provide_images<IV>(
-//     root: String,
-//     app_fn: impl Fn(leptos::Scope) -> IV + 'static,
-// ) -> ImageCacheContext
-// where
-//     IV: leptos::IntoView + 'static,
-// {
-//     let app_fn = Rc::new(app_fn);
-
-//     let make_app = {
-//         let app_fn = app_fn.clone();
-//         move || {
-//             let app_fn = app_fn.clone();
-//             move |cx: Scope| app_fn(cx)
-//         }
-//     };
-
-//     let images = get_app_images::get_app_images(make_app);
-
-//     let image_data: HashMap<CachedImage, String> = images
-//         .into_iter()
-//         .filter_map(|img| match img.option {
-//             crate::image_service::CachedImageOption::Blur(_) => {
-//                 let path = img.get_file_path_from_root(&root);
-//                 Some((img, path))
-//             }
-//             _ => None,
-//         })
-//         // Read all svg files into memory.
-//         .filter_map(|(img, path)| std::fs::read_to_string(path).ok().map(|svg| (img, svg)))
-//         .collect();
-
-//     ImageCacheContext(Rc::new(image_data))
-// }

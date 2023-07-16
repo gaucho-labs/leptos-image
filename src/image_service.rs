@@ -12,23 +12,33 @@ pub struct CachedImage {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
 pub enum CachedImageOption {
+    #[serde(rename = "r")]
     Resize(Resize),
+    #[serde(rename = "b")]
     Blur(Blur),
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
 pub struct Resize {
+    #[serde(rename = "w")]
     pub width: u32,
+    #[serde(rename = "h")]
     pub height: u32,
+    #[serde(rename = "q")]
     pub quality: u8,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
 pub struct Blur {
+    #[serde(rename = "w")]
     pub width: u32,
+    #[serde(rename = "h")]
     pub height: u32,
+    #[serde(rename = "sw")]
     pub svg_width: u32,
+    #[serde(rename = "sh")]
     pub svg_height: u32,
+    #[serde(rename = "s")]
     pub sigma: u8,
 }
 
@@ -42,8 +52,14 @@ pub enum CreateImageError {
 
 impl CachedImage {
     pub fn get_file_path(&self) -> String {
+        use base64::{engine::general_purpose, Engine as _};
+        // I'm worried this name will become too long.
+        // names are limited to 255 bytes on most filesystems.
+
         let encode = serde_qs::to_string(&self).unwrap();
-        let mut path = path_from_segments(vec!["cache", &encode, &self.src]);
+        let encode = general_purpose::STANDARD.encode(encode);
+
+        let mut path = path_from_segments(vec!["cache/image", &encode, &self.src]);
 
         if let CachedImageOption::Resize { .. } = self.option {
             path.set_extension("webp");
@@ -54,9 +70,17 @@ impl CachedImage {
         path.as_path().to_string_lossy().to_string()
     }
 
+    // TODO: Fix this. Super Yuck.
     pub fn from_file_path(path: &str) -> Option<Self> {
+        use base64::{engine::general_purpose, Engine as _};
         path.split("/")
-            .find_map(|encoded| serde_qs::from_str(encoded).ok())
+            .filter_map(|s| {
+                general_purpose::STANDARD
+                    .decode(s)
+                    .ok()
+                    .and_then(|s| String::from_utf8(s).ok())
+            })
+            .find_map(|encoded| serde_qs::from_str(&encoded).ok())
     }
 
     pub fn get_file_path_from_root(&self, root: &str) -> String {

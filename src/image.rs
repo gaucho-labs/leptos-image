@@ -21,6 +21,10 @@ pub fn Image(
     #[prop(into, optional)] alt: String,
     #[prop(into, optional)] class: String,
 ) -> impl IntoView {
+    if src.starts_with("http") {
+        debug_warn!("Image component does not support external images.");
+    }
+
     let blur_image = {
         CachedImage {
             src: src.clone(),
@@ -46,13 +50,16 @@ pub fn Image(
     };
 
     // Load images into context for blur generation.
+    // Happens on server start.
     #[cfg(feature = "ssr")]
-    if let Some(context) = use_context::<crate::get_app_images::ImageContext>(cx) {
+    if let Some(context) = use_context::<crate::cache::ImageContext>(cx) {
         let mut images = context.0.borrow_mut();
         images.push(opt_image.clone());
         images.push(blur_image.clone());
     }
 
+    // Check to see if we have svg literal already loaded in memory
+    // We can send over data on initial ssr load, instead of waiting for client to hydrate.
     let placeholder_svg = {
         use_context::<ImageCacheContext>(cx)
             .map(|context| context.0)
@@ -62,7 +69,6 @@ pub fn Image(
             })
     };
 
-    let blur_image = blur_image.get_url_encoded();
     let opt_image = opt_image.get_url_encoded();
 
     if blur {
@@ -70,6 +76,7 @@ pub fn Image(
             if let Some(svg_data) = placeholder_svg {
                 SvgImage::InMemory(svg_data)
             } else {
+                let blur_image = blur_image.get_url_encoded();
                 SvgImage::Request(blur_image)
             }
         };
@@ -106,7 +113,7 @@ fn CacheImage(
             }
         };
         let style= format!(
-        "color:transparent;max-width:100%;height:auto;background-size:cover;background-position:50% 50%;background-repeat:no-repeat;background-image:{background_image}');",
+        "color:transparent;max-width:100%;height:auto;background-size:cover;background-position:50% 50%;background-repeat:no-repeat;background-image:{background_image};",
         );
 
         style
