@@ -49,6 +49,7 @@ pub fn ImageProvider(cx: Scope, children: ChildrenFn) -> impl IntoView {
 #[derive(Clone, Debug)]
 pub(crate) struct ImageCacheContext(pub(crate) Rc<HashMap<CachedImage, String>>);
 
+#[cfg(feature = "ssr")]
 pub(crate) fn add_image_cache<I>(images: I)
 where
     I: IntoIterator<Item = (CachedImage, String)>,

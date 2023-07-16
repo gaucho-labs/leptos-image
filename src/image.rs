@@ -1,7 +1,7 @@
-use crate::introspect::IntrospectImageContext;
 use crate::optimizer::*;
 use crate::provider::ImageCacheContext;
 
+use leptos::html::Img;
 use leptos::*;
 use leptos_meta::Link;
 
@@ -61,7 +61,7 @@ pub fn Image(
     // Load images into context for blur generation.
     // Happens on server start.
     #[cfg(feature = "ssr")]
-    if let Some(context) = use_context::<IntrospectImageContext>(cx) {
+    if let Some(context) = use_context::<crate::introspect::IntrospectImageContext>(cx) {
         let mut images = context.0.borrow_mut();
         images.push(opt_image.clone());
         if blur {
@@ -124,14 +124,41 @@ fn CacheImage(
             }
         };
         let style= format!(
-        "color:transparent;max-width:100%;height:auto;background-size:cover;background-position:50% 50%;background-repeat:no-repeat;background-image:{background_image};",
+        "color:transparent;background-size:cover;background-position:50% 50%;background-repeat:no-repeat;background-image:{background_image};",
         );
 
         style
     };
 
-    // let (image, set_image) = create_signal(cx, blur_image);
     let (style, set_style) = create_signal(cx, style);
+
+    let image_ref = create_node_ref::<Img>(cx);
+
+    create_effect(cx, move |_| {
+        use wasm_bindgen::prelude::Closure;
+        use wasm_bindgen::JsCast;
+        if let Some(_) = image_ref.get().filter(|node| node.complete()) {
+            set_style.set("".to_string());
+        } else {
+            image_ref.on_load(cx, move |node| {
+                // check if image is loaded already.
+                let update_image = Closure::<dyn FnMut()>::new({
+                    move || {
+                        log!("Image loaded");
+                        set_style.set("".to_string());
+                    }
+                });
+                let as_js_func = update_image.as_ref().unchecked_ref();
+
+                node.add_event_listener_with_callback("load", as_js_func)
+                    .unwrap_or_else(|e| {
+                        error!("Failed to set image load listener {:?}", e);
+                    });
+
+                update_image.forget();
+            })
+        }
+    });
 
     view! { cx,
         {if priority {
@@ -142,12 +169,11 @@ fn CacheImage(
                 .into_view(cx)
         }}
         <img
+            ref=image_ref
             src=opt_image
             alt=alt.clone()
-            class=class.clone()
             style=move || style.get()
-            // This is non-deterministic?
-            // on:load=move |_| set_style.set("".into())
+            class=class.clone()
         />
     }
 }
