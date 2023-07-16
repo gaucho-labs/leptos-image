@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::optimizer::CachedImage;
 
+/// Extracts all the images from all non-dynamic <Route/>s in the given Leptos App.
 #[cfg(feature = "ssr")]
 pub fn find_app_images<IV>(app_fn: impl Fn(leptos::Scope) -> IV + 'static) -> Vec<CachedImage>
 where
@@ -25,19 +26,21 @@ where
         move |cx: leptos::Scope| app_fn(cx)
     };
 
-    find_app_images_from_paths(paths, app)
+    find_app_images_from_paths(app, paths)
 }
 
 /// Context to contain all possible images.
 #[derive(Clone, Default, Debug)]
 pub(crate) struct IntrospectImageContext(pub(crate) Rc<RefCell<Vec<CachedImage>>>);
 
+/// Extracts the CachedImages used in the provided paths.
 #[cfg(feature = "ssr")]
-pub fn find_app_images_from_paths<IV>(
-    paths: Vec<String>,
+pub fn find_app_images_from_paths<IV, P>(
     app_fn: impl Fn(leptos::Scope) -> IV + 'static,
+    paths: P,
 ) -> Vec<CachedImage>
 where
+    P: IntoIterator<Item = String>,
     IV: leptos::IntoView + 'static,
 {
     use leptos::*;

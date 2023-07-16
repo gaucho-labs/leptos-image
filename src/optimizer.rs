@@ -101,7 +101,7 @@ impl CachedImage {
         result
     }
 
-    // Returns the relative path as a string of the created image from the root.
+    // Returns the relative path as a string of the created image (relative from `root`).
     #[cfg(feature = "ssr")]
     pub async fn create_image(&self, root: &str) -> Result<String, CreateImageError> {
         let relative_path_created = self.get_file_path();
@@ -172,8 +172,6 @@ where
 {
     use webp::*;
 
-    let start = std::time::Instant::now();
-
     let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
 
     let Blur {
@@ -186,20 +184,12 @@ where
 
     let img = img.resize(width, height, image::imageops::FilterType::Nearest);
 
-    let resize_time = std::time::Instant::now();
-
-    let elapsed = resize_time.duration_since(start);
-    println!("resized image in {}", elapsed.as_millis());
-
     // Create the WebP encoder for the above image
     let encoder: Encoder = Encoder::from_image(&img).unwrap();
     // Encode the image at a specified quality 0-100
     let webp: WebPMemory = encoder.encode(80.0);
 
-    let webp_time = std::time::Instant::now();
-    let elapsed = webp_time.duration_since(resize_time);
-    println!("converted to webp in {}", elapsed.as_millis());
-
+    // Encode the image to base64
     use base64::{engine::general_purpose, Engine as _};
     let encoded = general_purpose::STANDARD.encode(&*webp);
 
@@ -251,76 +241,108 @@ where
     }
 }
 
-#[test]
-fn test_url_encode() {
-    let img = CachedImage {
-        src: "test.jpg".to_string(),
-        option: CachedImageOption::Resize(Resize {
-            quality: 75,
-            width: 100,
-            height: 100,
-        }),
-    };
+// Test module
+#[cfg(test)]
+mod optimizer_tests {
+    use super::*;
 
-    let encoded = img.get_url_encoded();
-    let decoded: CachedImage = CachedImage::from_url_encoded(&encoded).unwrap();
+    #[test]
+    fn url_encode() {
+        let img = CachedImage {
+            src: "test.jpg".to_string(),
+            option: CachedImageOption::Resize(Resize {
+                quality: 75,
+                width: 100,
+                height: 100,
+            }),
+        };
 
-    dbg!(encoded);
-    assert!(img == decoded);
-}
-#[test]
-fn test_encode() {
-    let result = create_image_blur(
-        "test.jpg",
-        Blur {
-            width: 25,
-            height: 25,
-            svg_height: 100,
-            svg_width: 100,
-            sigma: 20,
-        },
-    );
-    println!("{}", result.unwrap());
-}
+        let encoded = img.get_url_encoded();
+        let decoded: CachedImage = CachedImage::from_url_encoded(&encoded).unwrap();
 
-#[test]
-fn test_file_path() {
-    let spec = CachedImage {
-        src: "test.jpg".to_string(),
-        option: CachedImageOption::Blur(Blur {
-            width: 25,
-            height: 25,
-            svg_height: 100,
-            svg_width: 100,
-            sigma: 20,
-        }),
-    };
+        dbg!(encoded);
+        assert!(img == decoded);
+    }
 
-    let file_path = spec.get_file_path();
+    const TEST_IMAGE: &str = "example/image-example/public/cute_ferris.png";
 
-    dbg!(spec.get_file_path());
+    #[test]
+    fn file_path() {
+        let spec = CachedImage {
+            src: TEST_IMAGE.to_string(),
+            option: CachedImageOption::Blur(Blur {
+                width: 25,
+                height: 25,
+                svg_height: 100,
+                svg_width: 100,
+                sigma: 20,
+            }),
+        };
 
-    let result = CachedImage::from_file_path(&file_path).unwrap();
+        let file_path = spec.get_file_path();
 
-    assert_eq!(spec, result);
-}
+        dbg!(spec.get_file_path());
 
-#[test]
-fn test_save_svg() {
-    let spec = CachedImage {
-        src: "test.jpg".to_string(),
-        option: CachedImageOption::Blur(Blur {
-            width: 25,
-            height: 25,
-            svg_height: 100,
-            svg_width: 100,
-            sigma: 20,
-        }),
-    };
+        let result = CachedImage::from_file_path(&file_path).unwrap();
 
-    let file_path = spec.get_file_path();
+        assert_eq!(spec, result);
+    }
 
-    let result = create_optimized_image(spec.option, "test.jpg".to_string(), file_path);
+    #[test]
+    fn create_blur() {
+        let result = create_image_blur(
+            TEST_IMAGE.to_string(),
+            Blur {
+                width: 25,
+                height: 25,
+                svg_height: 100,
+                svg_width: 100,
+                sigma: 20,
+            },
+        );
+        assert!(result.is_ok());
+        println!("{}", result.unwrap());
+    }
 
-    assert!(result.is_ok());
+    #[test]
+    fn create_and_save_blur() {
+        let spec = CachedImage {
+            src: TEST_IMAGE.to_string(),
+            option: CachedImageOption::Blur(Blur {
+                width: 25,
+                height: 25,
+                svg_height: 100,
+                svg_width: 100,
+                sigma: 20,
+            }),
+        };
+
+        let file_path = spec.get_file_path();
+
+        let result = create_optimized_image(spec.option, TEST_IMAGE.to_string(), file_path.clone());
+
+        assert!(result.is_ok());
+
+        println!("Saved SVG at {file_path}");
+    }
+
+    #[test]
+    fn create_opt_image() {
+        let spec = CachedImage {
+            src: TEST_IMAGE.to_string(),
+            option: CachedImageOption::Resize(Resize {
+                quality: 75,
+                width: 100,
+                height: 100,
+            }),
+        };
+
+        let file_path = spec.get_file_path();
+
+        let result = create_optimized_image(spec.option, TEST_IMAGE.to_string(), file_path.clone());
+
+        assert!(result.is_ok());
+
+        println!("Saved WebP at {file_path}");
+    }
 }
