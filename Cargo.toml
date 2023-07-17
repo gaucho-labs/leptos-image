@@ -32,12 +32,13 @@ base64 = "0.21.2"
 lazy_static = "1.4.0"
 futures = { version = "0.3.28", optional = true }
 glob = { version = "0.3.1", optional = true }
+log = { version = "0.4.19", optional = true }
 
 [features]
 ssr = [ 
     "leptos_router/ssr", "leptos_meta/ssr" , "leptos/ssr",
     "dep:webp", "dep:image", 
     "dep:tokio", "dep:axum", "dep:tower", "dep:tower-http",
-    "dep:futures", "dep:glob"
+    "dep:futures", "dep:glob", "dep:log"
     ]
 hydrate = [ "dep:web-sys","leptos/hydrate", "leptos_router/hydrate" ]

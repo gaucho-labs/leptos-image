@@ -104,6 +104,12 @@ impl CachedImage {
     // Returns the relative path as a string of the created image (relative from `root`).
     #[cfg(feature = "ssr")]
     pub async fn create_image(&self, root: &str) -> Result<String, CreateImageError> {
+        let option = if let CachedImageOption::Resize(_) = self.option {
+            "Resize"
+        } else {
+            "Blur"
+        };
+        log::debug!("Creating {option} image for {}", &self.src);
         let relative_path_created = self.get_file_path();
 
         let save_path = path_from_segments(vec![root, &relative_path_created]);

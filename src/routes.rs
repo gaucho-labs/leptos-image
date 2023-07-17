@@ -55,13 +55,15 @@ pub mod handlers {
                 .map(boxed)
                 .into_response(),
 
-            // TODO: Include Log?
-            Err(_) => Response::builder()
-                .status(500)
-                .body("Error creating image".to_string())
-                .unwrap()
-                .map(boxed)
-                .into_response(),
+            Err(e) => {
+                log::error!("Failed to create image: {:?}", e);
+                Response::builder()
+                    .status(500)
+                    .body("Error creating image".to_string())
+                    .unwrap()
+                    .map(boxed)
+                    .into_response()
+            }
         }
     }
 

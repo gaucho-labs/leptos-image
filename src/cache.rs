@@ -18,7 +18,7 @@ where
         })
         .collect();
 
-    println!("Waiting for images to be created...");
+    log::info!("Creating {} cached images", &all_images.len());
 
     let result: Result<Vec<_>, CreateImageError> = futures::future::join_all(all_images)
         .await
@@ -27,8 +27,6 @@ where
         .collect();
 
     let _ = result?;
-
-    println!("Images created.");
 
     let image_data = images
         .into_iter()
