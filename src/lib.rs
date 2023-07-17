@@ -1,8 +1,11 @@
 pub mod cache;
-pub mod image;
+mod image;
 pub mod introspect;
 pub mod optimizer;
-pub mod provider;
+mod provider;
 mod routes;
+
+pub use image::*;
+pub use provider::*;
 #[cfg(feature = "ssr")]
 pub use routes::*;

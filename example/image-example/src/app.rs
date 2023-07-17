@@ -1,6 +1,6 @@
 use crate::error_template::{AppError, ErrorTemplate};
 use leptos::*;
-use leptos_image::{image::Image, provider::ImageProvider};
+use leptos_image::{Image, ImageProvider};
 use leptos_meta::*;
 use leptos_router::*;
 
