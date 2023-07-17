@@ -32,7 +32,8 @@ pub fn Image(
 ) -> impl IntoView {
     if src.starts_with("http") {
         debug_warn!("Image component only supports static images.");
-        return view! { cx, <img src=src alt=alt class=class/> }.into_view(cx);
+        let loading = if lazy { "lazy" } else { "eager" };
+        return view! { cx, <img src=src alt=alt class=class loading=loading/> }.into_view(cx);
     }
 
     let blur_image = {
@@ -94,8 +95,8 @@ pub fn Image(
         };
         view! { cx, <CacheImage lazy svg opt_image alt class priority/> }.into_view(cx)
     } else {
-        let lazy = if lazy { "lazy" } else { "eager" };
-        view! { cx, <img alt=alt class=class decoding="async" lazy=lazy src=opt_image /> }
+        let loading = if lazy { "lazy" } else { "eager" };
+        view! { cx, <img alt=alt class=class decoding="async" loading=loading src=opt_image /> }
             .into_view(cx)
     }
 }
@@ -134,7 +135,7 @@ fn CacheImage(
         style
     };
 
-    let lazy = if lazy { "lazy" } else { "eager" };
+    let loading = if lazy { "lazy" } else { "eager" };
 
     view! { cx,
         {if priority {
@@ -148,7 +149,7 @@ fn CacheImage(
             alt=alt.clone()
             class=class.clone()
             decoding="async"
-            lazy=lazy
+            loading=loading
             src=opt_image
             style=style
         />

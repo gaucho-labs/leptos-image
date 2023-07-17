@@ -8,6 +8,9 @@ use std::{
 };
 
 ///
+/// Provides image blur previews to the app.
+///
+///
 /// Example
 /// ```
 /// #[component]

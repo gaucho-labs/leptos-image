@@ -1,3 +1,5 @@
+/// Caches all images in accessible routes of the app on one go.
+/// Use parallelism to limit the number of images being processed at once.
 #[cfg(feature = "ssr")]
 pub async fn cache_app_images<IV>(
     root: String,
