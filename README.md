@@ -14,6 +14,12 @@ Enter Leptos ` <Image/>`, a component that enhances the standard HTML `<img>` el
 
 **REQUIRES SSR + AXUM**
 
+Add leptos_image via cargo:
+
+```
+cargo add leptos_image
+```
+
 In the base of your App, wrap everything (including Router) in `<ImageProvider/>`
 
 ```rust
@@ -76,16 +82,16 @@ cache_app_images(root, |cx: Scope| view! {cx, <App/>})
 
 Next add an endpoint to your router that serves the cached images. For now, the endpoint path must be `/cache/image` and is not configurable
 
-````rust
-
 ```rust
+
 use axum::{routing::{get, post}, Router};
+use leptos_image::handlers::image_cache_handler;
 
 let router = ...
 
 router.route("/cache/image", get(image_cache_handler));
 
-````
+```
 
 The final router should look something like this!
 
@@ -100,7 +106,6 @@ let router = Router::new()
         })
         // Here's the new route!.
         .route("/cache/image", get(image_cache_handler))
-        .fallback(file_and_error_handler)
         .with_state(leptos_options);
 
 ```

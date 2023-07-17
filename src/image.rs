@@ -144,7 +144,6 @@ fn CacheImage(
                 // check if image is loaded already.
                 let update_image = Closure::<dyn FnMut()>::new({
                     move || {
-                        log!("Image loaded");
                         set_style.set("".to_string());
                     }
                 });
