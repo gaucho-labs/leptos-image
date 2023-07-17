@@ -62,7 +62,7 @@ pub fn MyPage(cx: Scope) -> impl IntoView {
 
 Next go to your SSR Main Function in `main.rs`
 
-Before you create your router, call the `cache_app_images` function with the project root. This will cache all the images in your app, and generate the LQIPs. 
+Before you create your router, call the `cache_app_images` function with the project root. This will cache all the images in your app, and generate the LQIPs.
 
 If you have a lot of images, then you should probably only call this function in production because it will delay your server startup.
 
@@ -78,7 +78,7 @@ let root = leptos_options.site_root.clone();
 
 use leptos_image::cache::cache_app_images;
 
-cache_app_images(root, |cx: Scope| view! {cx, <App/>})
+cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 2)
     .await
     .expect("Failed to cache images");
 
