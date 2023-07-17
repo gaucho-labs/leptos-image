@@ -25,7 +25,13 @@ pub fn ImageProvider(cx: Scope, children: ChildrenFn) -> impl IntoView {
     let resource = create_blocking_resource(
         cx,
         || "images",
-        |_| async { IMAGE_CACHE.read().map(|c| c.clone()).unwrap_or(vec![]) },
+        |_| async {
+            IMAGE_CACHE
+                .read()
+                .map(|c| c.clone())
+                .map(|c| c.into_iter().collect::<Vec<_>>())
+                .unwrap_or(vec![])
+        },
     );
 
     let children = store_value(cx, children);
@@ -55,12 +61,12 @@ where
     I: IntoIterator<Item = (CachedImage, String)>,
 {
     let mut cache = IMAGE_CACHE.write().unwrap();
-    for (image, path) in images.into_iter() {
-        cache.push((image, path));
+    for (image, svg) in images.into_iter() {
+        cache.insert(image, svg);
     }
 }
 
 lazy_static! {
-    pub(crate) static ref IMAGE_CACHE: Arc<RwLock<Vec<(CachedImage, String)>>> =
-        Arc::new(RwLock::new(vec![]));
+    pub(crate) static ref IMAGE_CACHE: Arc<RwLock<HashMap<CachedImage, String>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 }

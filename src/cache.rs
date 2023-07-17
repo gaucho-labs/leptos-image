@@ -2,6 +2,7 @@
 pub async fn cache_app_images<IV>(
     root: String,
     app_fn: impl Fn(leptos::Scope) -> IV + 'static,
+    parallelism: usize,
 ) -> Result<(), crate::optimizer::CreateImageError>
 where
     IV: leptos::IntoView + 'static,
@@ -9,24 +10,26 @@ where
     use crate::optimizer::CreateImageError;
 
     let images = crate::introspect::find_app_images(app_fn);
-    let all_images: Vec<_> = images
-        .clone()
-        .into_iter()
-        .map(|img| {
+    let futures: Vec<_> = images
+        .iter()
+        .cloned()
+        .map(|img| async {
             let root = root.clone();
-            tokio::spawn(async move { img.create_image(&root).await })
+            tokio::task::spawn(async move { img.create_image(&root).await })
+                .await
+                .unwrap()
         })
         .collect();
 
-    log::info!("Creating {} cached images", &all_images.len());
+    use futures::prelude::*;
+    let result: Vec<_> = futures::stream::iter(futures)
+        .buffer_unordered(parallelism)
+        .collect()
+        .await;
 
-    let result: Result<Vec<_>, CreateImageError> = futures::future::join_all(all_images)
-        .await
+    let _ = result
         .into_iter()
-        .map(|res| res.unwrap())
-        .collect();
-
-    let _ = result?;
+        .collect::<Result<Vec<_>, CreateImageError>>()?;
 
     let image_data = images
         .into_iter()

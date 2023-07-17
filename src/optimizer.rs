@@ -102,8 +102,9 @@ impl CachedImage {
     }
 
     // Returns the relative path as a string of the created image (relative from `root`).
+    // Also returns a bool indicating if the image was created (rather than already existing).
     #[cfg(feature = "ssr")]
-    pub async fn create_image(&self, root: &str) -> Result<String, CreateImageError> {
+    pub async fn create_image(&self, root: &str) -> Result<(String, bool), CreateImageError> {
         let option = if let CachedImageOption::Resize(_) = self.option {
             "Resize"
         } else {
@@ -116,7 +117,7 @@ impl CachedImage {
         let absolute_src_path = path_from_segments(vec![root, &self.src]);
 
         if file_exists(&save_path).await {
-            Ok(relative_path_created)
+            Ok((relative_path_created, false))
         } else {
             let task = tokio::task::spawn_blocking({
                 let config = self.clone();
@@ -126,7 +127,7 @@ impl CachedImage {
             match task.await {
                 Err(join_error) => Err(CreateImageError::JoinError(join_error)),
                 Ok(Err(err)) => Err(err),
-                Ok(Ok(_)) => Ok(relative_path_created),
+                Ok(Ok(_)) => Ok((relative_path_created, true)),
             }
         }
     }

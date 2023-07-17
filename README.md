@@ -4,7 +4,7 @@
 
 Images make a substantial impact on the size and performance of a website, so why not get them right?
 
-Enter Leptos ` <Image/>`, a component that enhances the standard HTML `<img>` element with automatic image optimization features.
+Enter Leptos `<Image/>`, a component that enhances the standard HTML `<img>` element with automatic image optimization features.
 
 - **Size Optimization**: Resize images, and use modern `.webp` format for optimal size and quality.
 - **Low-Quality Image Placeholders (LQIP)**: With this feature, the Image component embeds SVGs, extracted from the original images, into the initial SSR HTML. This placeholder is shown while the optimized version is loading.
@@ -47,7 +47,7 @@ pub fn App(cx: Scope) -> impl IntoView {
 #[component]
 pub fn MyPage(cx: Scope) -> impl IntoView {
     view! { cx,
-        <Title text="This Rust thing is pretty great (100 reasons to hate python)"/>
+        <Title text="This Rust thing is pretty great (100 reasons to hate on python)"/>
         <Image
             src="/cute_ferris.png"
             blur=true
@@ -62,7 +62,11 @@ pub fn MyPage(cx: Scope) -> impl IntoView {
 
 Next go to your SSR Main Function in `main.rs`
 
-Before you create your router, call the `cache_app_images` function with the project root. This will cache all the images in your app, and generate the LQIPs
+Before you create your router, call the `cache_app_images` function with the project root. This will cache all the images in your app, and generate the LQIPs. 
+
+If you have a lot of images, then you should probably only call this function in production because it will delay your server startup.
+
+If you don't include this function, then image caching will happen at runtime.
 
 ```rust
 

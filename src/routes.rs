@@ -3,7 +3,8 @@
 // If cached, it will return the cached image.
 #[cfg(feature = "ssr")]
 pub mod handlers {
-    use crate::optimizer::{CachedImage, CreateImageError};
+    use crate::add_image_cache;
+    use crate::optimizer::{CachedImage, CachedImageOption, CreateImageError};
     use axum::response::Response as AxumResponse;
     use axum::{
         body::boxed,
@@ -83,7 +84,7 @@ pub mod handlers {
         let maybe_cache_image = CachedImage::from_url_encoded(&url).ok();
 
         let maybe_created = {
-            if let Some(img) = maybe_cache_image {
+            if let Some(ref img) = maybe_cache_image {
                 Some(img.create_image(root).await)
             } else {
                 None
@@ -91,12 +92,28 @@ pub mod handlers {
         };
 
         match maybe_created {
-            Some(Ok(file_path)) => {
+            Some(Ok((file_path, created))) => {
+                if created && maybe_cache_image.is_some() {
+                    add_file_to_cache(root, maybe_cache_image.unwrap()).await;
+                }
                 let new_uri = ("/".to_string() + &file_path).parse::<Uri>().unwrap();
                 Ok(Some(new_uri))
             }
             Some(Err(err)) => Err(err),
             None => Ok(None),
+        }
+    }
+
+    // When the image is created, it will be added to the cache.
+    // Mostly helpful for dev server startup.
+    async fn add_file_to_cache(root: &str, image: CachedImage) {
+        if let CachedImageOption::Blur(_) = image.option {
+            let path = image.get_file_path_from_root(root);
+            let created = tokio::fs::read_to_string(path).await.ok();
+            if let Some(created) = created {
+                add_image_cache([(image, created)]);
+            }
+            return;
         }
     }
 }

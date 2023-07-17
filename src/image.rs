@@ -1,7 +1,6 @@
 use crate::optimizer::*;
 use crate::provider::ImageCacheContext;
 
-use leptos::html::Img;
 use leptos::*;
 use leptos_meta::Link;
 
@@ -24,13 +23,15 @@ pub fn Image(
     #[prop(default = false)] blur: bool,
     // Will add preload link to head if true.
     #[prop(default = false)] priority: bool,
+    // Lazy load image.
+    #[prop(default = true)] lazy: bool,
     // Image alt text.
     #[prop(into, optional)] alt: String,
     // Style class for image.
     #[prop(into, optional)] class: String,
 ) -> impl IntoView {
     if src.starts_with("http") {
-        debug_warn!("Image component does not support external images.");
+        debug_warn!("Image component only supports static images.");
         return view! { cx, <img src=src alt=alt class=class/> }.into_view(cx);
     }
 
@@ -38,8 +39,8 @@ pub fn Image(
         CachedImage {
             src: src.clone(),
             option: CachedImageOption::Blur(Blur {
-                width: 25,
-                height: 25,
+                width: 20,
+                height: 20,
                 svg_width: 100,
                 svg_height: 100,
                 sigma: 15,
@@ -91,9 +92,11 @@ pub fn Image(
                 SvgImage::Request(blur_image)
             }
         };
-        view! { cx, <CacheImage svg opt_image alt class priority/> }.into_view(cx)
+        view! { cx, <CacheImage lazy svg opt_image alt class priority/> }.into_view(cx)
     } else {
-        view! { cx, <img src=opt_image alt=alt class=class/> }.into_view(cx)
+        let lazy = if lazy { "lazy" } else { "eager" };
+        view! { cx, <img alt=alt class=class decoding="async" lazy=lazy src=opt_image /> }
+            .into_view(cx)
     }
 }
 
@@ -110,6 +113,7 @@ fn CacheImage(
     #[prop(into, optional)] alt: String,
     #[prop(into, optional)] class: String,
     priority: bool,
+    lazy: bool,
 ) -> impl IntoView {
     use base64::{engine::general_purpose, Engine as _};
 
@@ -130,34 +134,7 @@ fn CacheImage(
         style
     };
 
-    let (style, set_style) = create_signal(cx, style);
-
-    let image_ref = create_node_ref::<Img>(cx);
-
-    create_effect(cx, move |_| {
-        use wasm_bindgen::prelude::Closure;
-        use wasm_bindgen::JsCast;
-        if let Some(_) = image_ref.get().filter(|node| node.complete()) {
-            set_style.set("".to_string());
-        } else {
-            image_ref.on_load(cx, move |node| {
-                // check if image is loaded already.
-                let update_image = Closure::<dyn FnMut()>::new({
-                    move || {
-                        set_style.set("".to_string());
-                    }
-                });
-                let as_js_func = update_image.as_ref().unchecked_ref();
-
-                node.add_event_listener_with_callback("load", as_js_func)
-                    .unwrap_or_else(|e| {
-                        error!("Failed to set image load listener {:?}", e);
-                    });
-
-                update_image.forget();
-            })
-        }
-    });
+    let lazy = if lazy { "lazy" } else { "eager" };
 
     view! { cx,
         {if priority {
@@ -168,11 +145,12 @@ fn CacheImage(
                 .into_view(cx)
         }}
         <img
-            ref=image_ref
-            src=opt_image
             alt=alt.clone()
-            style=move || style.get()
             class=class.clone()
+            decoding="async"
+            lazy=lazy
+            src=opt_image
+            style=style
         />
     }
 }
