@@ -54,7 +54,7 @@ let root = leptos_options.site_root.clone();
 
 use leptos_image::cache::cache_app_images;
 
-cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 2)
+cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 2, || (), || ())
     .await
     .expect("Failed to cache images");
 

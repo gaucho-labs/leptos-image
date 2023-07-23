@@ -27,7 +27,7 @@ async fn main() {
     let leptos_options = conf.leptos_options;
     let root = leptos_options.site_root.clone();
 
-    cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 1)
+    cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 1, || (), || ())
         .await
         .expect("Failed to cache images");
 

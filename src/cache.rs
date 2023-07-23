@@ -6,13 +6,15 @@ pub async fn cache_app_images<IV>(
     root: String,
     app_fn: impl Fn(leptos::Scope) -> IV + 'static,
     parallelism: usize,
+    before_mount: impl Fn() + 'static,
+    after_mount: impl Fn() + 'static,
 ) -> Result<(), crate::optimizer::CreateImageError>
 where
     IV: leptos::IntoView + 'static,
 {
     use crate::optimizer::CreateImageError;
 
-    let images = crate::introspect::find_app_images(app_fn);
+    let images = crate::introspect::find_app_images_with_mount(app_fn, before_mount, after_mount);
     let futures: Vec<_> = images
         .iter()
         .cloned()
