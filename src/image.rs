@@ -86,7 +86,7 @@ pub fn Image(
             .map(|context| context.0)
             .and_then(|map| {
                 let maybe = map.get(&blur_image);
-                maybe.map(|link| link.clone())
+                maybe.cloned()
             })
     };
 

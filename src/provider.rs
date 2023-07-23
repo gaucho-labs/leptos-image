@@ -1,6 +1,5 @@
 use crate::optimizer::CachedImage;
 use lazy_static::lazy_static;
-use leptos::*;
 use std::{
     collections::HashMap,
     rc::Rc,
@@ -23,13 +22,13 @@ use std::{
 ///     })
 /// ```
 #[cfg(feature = "ssr")]
-pub fn provide_image_context(cx: Scope) {
+pub fn provide_image_context(cx: leptos::Scope) {
     let cache = IMAGE_CACHE
         .read()
         .map(|c| c.clone())
         .unwrap_or(HashMap::new());
 
-    provide_context(cx, ImageCacheContext(Rc::new(cache)));
+    leptos::provide_context(cx, ImageCacheContext(Rc::new(cache)));
 }
 
 // CacheImage -> Blur Image SVG data (literally the svg data, not a file_path).

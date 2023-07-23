@@ -51,6 +51,14 @@ pub enum CreateImageError {
 }
 
 impl CachedImage {
+    pub(crate) fn get_url_encoded(&self) -> String {
+        // TODO: make this configurable?
+        let image_cache_path = "/cache/image";
+        let params = serde_qs::to_string(&self).unwrap();
+        format!("{}?{}", image_cache_path, params)
+    }
+
+    #[cfg(feature = "ssr")]
     pub fn get_file_path(&self) -> String {
         use base64::{engine::general_purpose, Engine as _};
         // I'm worried this name will become too long.
@@ -72,9 +80,10 @@ impl CachedImage {
 
     // TODO: Fix this. Super Yuck.
     #[allow(dead_code)]
+    #[cfg(feature = "ssr")]
     pub(crate) fn from_file_path(path: &str) -> Option<Self> {
         use base64::{engine::general_purpose, Engine as _};
-        path.split("/")
+        path.split('/')
             .filter_map(|s| {
                 general_purpose::STANDARD
                     .decode(s)
@@ -84,21 +93,16 @@ impl CachedImage {
             .find_map(|encoded| serde_qs::from_str(&encoded).ok())
     }
 
+    #[cfg(feature = "ssr")]
     pub(crate) fn get_file_path_from_root(&self, root: &str) -> String {
         let path = path_from_segments(vec![root, &self.get_file_path()]);
         path.as_path().to_string_lossy().to_string()
     }
 
-    pub(crate) fn get_url_encoded(&self) -> String {
-        // TODO: make this configurable?
-        let image_cache_path = "/cache/image";
-        let params = serde_qs::to_string(&self).unwrap();
-        format!("{}?{}", image_cache_path, params)
-    }
-
+    #[cfg(feature = "ssr")]
     pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
-        let url = url.split("?").filter(|s| *s != "?").last().unwrap_or(url);
-        let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(&url);
+        let url = url.split('?').filter(|s| *s != "?").last().unwrap_or(url);
+        let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(url);
         result
     }
 
@@ -220,6 +224,7 @@ where
     Ok(svg)
 }
 
+#[cfg(feature = "ssr")]
 fn path_from_segments(segments: Vec<&str>) -> std::path::PathBuf {
     segments
         .into_iter()
