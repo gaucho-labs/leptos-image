@@ -1,6 +1,6 @@
 [package]
 name = "leptos_image"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Nico Burniske"]
 description = "Static Image Optimizer for Leptos"
@@ -40,5 +40,5 @@ ssr = [
     "dep:webp", "dep:image", 
     "dep:tokio", "dep:axum", "dep:tower", "dep:tower-http",
     "dep:futures", "dep:glob", "dep:log"
-    ]
+]
 hydrate = [ "dep:web-sys","leptos/hydrate", "leptos_router/hydrate" ]
