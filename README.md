@@ -35,7 +35,22 @@ ssr = [
 
 **REQUIRES SSR + AXUM**
 
-Go to your SSR Main Function in `main.rs`
+First add the provider to the base of your Leptos App.
+
+```rust
+use leptos_image::*;
+
+#[component]
+pub fn App(cx: Scope) -> impl IntoView {
+    provide_image_context(cx);
+
+    view!{cx,
+        // ...
+    }
+}
+```
+
+Next go to your SSR Main Function in `main.rs`
 
 Before you create your router, call the `cache_app_images` function with the project root. This will cache all the images in your app, and generate the LQIPs.
 
@@ -72,8 +87,6 @@ router.route("/cache/image", get(image_cache_handler));
 
 ```
 
-Next inside of leptos_routes, call the `provide_image_context` function. This will provide the Image Context to your App during SSR.
-
 The final router should look something like this!
 
 ```rust
@@ -81,8 +94,6 @@ The final router should look something like this!
 let router = Router::new()
         .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
         .leptos_routes(&leptos_options, routes, |cx| {
-            // Image Context is provided here!
-            provide_image_context(cx);
             view! { cx,
                 <App/>
             }

@@ -1,5 +1,4 @@
 use crate::optimizer::*;
-use crate::provider::ImageCacheContext;
 
 use leptos::*;
 use leptos_meta::Link;
@@ -79,32 +78,46 @@ pub fn Image(
         }
     }
 
-    // Check to see if we have svg literal already loaded in memory
-    // We can send over data on initial ssr load, instead of waiting for client to hydrate.
-    let placeholder_svg = {
-        use_context::<ImageCacheContext>(cx)
-            .map(|context| context.0)
-            .and_then(|map| {
-                let maybe = map.get(&blur_image);
-                maybe.cloned()
-            })
-    };
-
     let opt_image = opt_image.get_url_encoded();
 
     if blur {
-        let svg = {
-            if let Some(svg_data) = placeholder_svg {
-                SvgImage::InMemory(svg_data)
-            } else {
-                let blur_image = blur_image.get_url_encoded();
-                SvgImage::Request(blur_image)
-            }
-        };
-        view! { cx, <CacheImage lazy svg opt_image alt class=class priority/> }.into_view(cx)
+        // Retrieve value from Cache if it exists. Doing this per-image to allow image introspection.
+        let resource = crate::use_image_cache_resource(cx);
+
+        let blur_image = store_value(cx, blur_image);
+        let opt_image = store_value(cx, opt_image);
+        let alt = store_value(cx, alt);
+        let class = store_value(cx, class.map(|c| c.into_attribute_boxed(cx)));
+
+        view! { cx,
+            <Suspense fallback=|| ()>
+                {move || {
+                    resource
+                        .read(cx)
+                        .map(|images| {
+                            let placeholder_svg = images
+                                .iter()
+                                .find(|(c, _)| blur_image.with_value(|b| b == c))
+                                .map(|c| c.1.clone());
+                            let svg = {
+                                if let Some(svg_data) = placeholder_svg {
+                                    SvgImage::InMemory(svg_data)
+                                } else {
+                                    SvgImage::Request(blur_image.get_value().get_url_encoded())
+                                }
+                            };
+                            let opt_image = opt_image.get_value();
+                            let class = class.get_value();
+                            let alt = alt.get_value();
+                            view! { cx, <CacheImage lazy svg opt_image alt class=class priority/> }
+                                .into_view(cx)
+                        })
+                }}
+            </Suspense>
+        }
     } else {
         let loading = if lazy { "lazy" } else { "eager" };
-        view! { cx, <img alt=alt class=class decoding="async" loading=loading src=opt_image /> }
+        view! { cx, <img alt=alt class=class decoding="async" loading=loading src=opt_image/> }
             .into_view(cx)
     }
 }
@@ -120,7 +133,7 @@ fn CacheImage(
     svg: SvgImage,
     #[prop(into)] opt_image: String,
     #[prop(into, optional)] alt: String,
-    class: Option<AttributeValue>,
+    class: Option<Attribute>,
     priority: bool,
     lazy: bool,
 ) -> impl IntoView {

@@ -1,39 +1,50 @@
 use crate::optimizer::CachedImage;
 use lazy_static::lazy_static;
+use leptos::*;
 use std::{
     collections::HashMap,
-    rc::Rc,
     sync::{Arc, RwLock},
 };
 
 /// Provides Image Cache Context to the given scope.
-/// This should go in your SSR main function's Router.
+/// This should go in the base of your Leptos <App/>.
 ///
-/// Leptos + Axum Example
+///Example
 ///
 /// ```
-///let app = Router::new()
-///     .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
-///     .leptos_routes(&leptos_options, routes, |cx| {
-///         provide_image_context(cx);
-///         view! { cx,
-///             <App/>
-///         }
-///     })
+/// use leptos_image::*;
+///
+/// #[component]
+/// pub fn App(cx: Scope) -> impl IntoView {
+///     provide_image_context(cx);
+///
+///     view! { cx,
+///
+///     }
+/// }
+///
 /// ```
-#[cfg(feature = "ssr")]
 pub fn provide_image_context(cx: leptos::Scope) {
-    let cache = IMAGE_CACHE
-        .read()
-        .map(|c| c.clone())
-        .unwrap_or(HashMap::new());
+    let resource: ImageResource = create_blocking_resource(
+        cx,
+        || (),
+        |_| async {
+            IMAGE_CACHE
+                .read()
+                .map(|c| c.clone())
+                .map(|c| c.into_iter().collect::<Vec<_>>())
+                .unwrap_or(vec![])
+        },
+    );
 
-    leptos::provide_context(cx, ImageCacheContext(Rc::new(cache)));
+    leptos::provide_context(cx, resource);
 }
 
-// CacheImage -> Blur Image SVG data (literally the svg data, not a file_path).
-#[derive(Clone, Debug)]
-pub(crate) struct ImageCacheContext(pub(crate) Rc<HashMap<CachedImage, String>>);
+type ImageResource = Resource<(), Vec<(CachedImage, String)>>;
+
+pub(crate) fn use_image_cache_resource(cx: Scope) -> ImageResource {
+    use_context::<ImageResource>(cx).expect("Missing Image Resource")
+}
 
 #[cfg(feature = "ssr")]
 pub(crate) fn add_image_cache<I>(images: I)
@@ -47,6 +58,7 @@ where
 }
 
 lazy_static! {
+    // CacheImage -> Blur Image SVG data (literally the svg data, not a file_path).
     pub(crate) static ref IMAGE_CACHE: Arc<RwLock<HashMap<CachedImage, String>>> =
         Arc::new(RwLock::new(HashMap::new()));
 }

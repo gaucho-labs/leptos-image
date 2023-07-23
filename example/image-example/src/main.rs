@@ -35,7 +35,6 @@ async fn main() {
     let app = Router::new()
         .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
         .leptos_routes(&leptos_options, routes, |cx| {
-            provide_image_context(cx);
             view! { cx,
                    <App/>
             }
