@@ -5,30 +5,38 @@ use leptos::*;
 use leptos_meta::Link;
 
 /**
- * Image component for rendering optimized static images.
- * Images MUST be static. Will not work with dynamic images.
  */
 
+/// Image component for rendering optimized static images.
+/// Images MUST be static. Will not work with dynamic images.
 #[component]
 pub fn Image(
     cx: Scope,
-    #[prop(into)] src: String,
-    // Resize image height, but will still maintain the same aspect ratio.
+    /// Image source. Should be path relative to root.
+    #[prop(into)]
+    src: String,
+    /// Resize image height, but will still maintain the same aspect ratio.
     height: u32,
-    // Resize image width, but will still maintain the same aspect ratio.
+    /// Resize image width, but will still maintain the same aspect ratio.
     width: u32,
-    // Image quality. 0-100.
-    #[prop(default = 75_u8)] quality: u8,
-    // Will add blur image to head if true.
-    #[prop(default = false)] blur: bool,
-    // Will add preload link to head if true.
-    #[prop(default = false)] priority: bool,
-    // Lazy load image.
-    #[prop(default = true)] lazy: bool,
-    // Image alt text.
-    #[prop(into, optional)] alt: String,
-    // Style class for image.
-    #[prop(into, optional)] class: String,
+    /// Image quality. 0-100.
+    #[prop(default = 75_u8)]
+    quality: u8,
+    /// Will add blur image to head if true.
+    #[prop(default = false)]
+    blur: bool,
+    /// Will add preload link to head if true.
+    #[prop(default = false)]
+    priority: bool,
+    /// Lazy load image.
+    #[prop(default = true)]
+    lazy: bool,
+    /// Image alt text.
+    #[prop(into, optional)]
+    alt: String,
+    /// Style class for image.
+    #[prop(into, optional)]
+    class: Option<AttributeValue>,
 ) -> impl IntoView {
     if src.starts_with("http") {
         debug_warn!("Image component only supports static images.");
@@ -93,7 +101,7 @@ pub fn Image(
                 SvgImage::Request(blur_image)
             }
         };
-        view! { cx, <CacheImage lazy svg opt_image alt class priority/> }.into_view(cx)
+        view! { cx, <CacheImage lazy svg opt_image alt class=class priority/> }.into_view(cx)
     } else {
         let loading = if lazy { "lazy" } else { "eager" };
         view! { cx, <img alt=alt class=class decoding="async" loading=loading src=opt_image /> }
@@ -112,7 +120,7 @@ fn CacheImage(
     svg: SvgImage,
     #[prop(into)] opt_image: String,
     #[prop(into, optional)] alt: String,
-    #[prop(into, optional)] class: String,
+    class: Option<AttributeValue>,
     priority: bool,
     lazy: bool,
 ) -> impl IntoView {
@@ -147,7 +155,7 @@ fn CacheImage(
         }}
         <img
             alt=alt.clone()
-            class=class.clone()
+            class=class
             decoding="async"
             loading=loading
             src=opt_image

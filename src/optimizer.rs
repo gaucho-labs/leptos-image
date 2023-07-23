@@ -71,7 +71,8 @@ impl CachedImage {
     }
 
     // TODO: Fix this. Super Yuck.
-    pub fn from_file_path(path: &str) -> Option<Self> {
+    #[allow(dead_code)]
+    pub(crate) fn from_file_path(path: &str) -> Option<Self> {
         use base64::{engine::general_purpose, Engine as _};
         path.split("/")
             .filter_map(|s| {
@@ -83,26 +84,26 @@ impl CachedImage {
             .find_map(|encoded| serde_qs::from_str(&encoded).ok())
     }
 
-    pub fn get_file_path_from_root(&self, root: &str) -> String {
+    pub(crate) fn get_file_path_from_root(&self, root: &str) -> String {
         let path = path_from_segments(vec![root, &self.get_file_path()]);
         path.as_path().to_string_lossy().to_string()
     }
 
-    pub fn get_url_encoded(&self) -> String {
+    pub(crate) fn get_url_encoded(&self) -> String {
         // TODO: make this configurable?
         let image_cache_path = "/cache/image";
         let params = serde_qs::to_string(&self).unwrap();
         format!("{}?{}", image_cache_path, params)
     }
 
-    pub fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
+    pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
         let url = url.split("?").filter(|s| *s != "?").last().unwrap_or(url);
         let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(&url);
         result
     }
 
-    // Returns the relative path as a string of the created image (relative from `root`).
-    // Also returns a bool indicating if the image was created (rather than already existing).
+    /// Returns the relative path as a string of the created image (relative from `root`).
+    /// Also returns a bool indicating if the image was created (rather than already existing).
     #[cfg(feature = "ssr")]
     pub async fn create_image(&self, root: &str) -> Result<(String, bool), CreateImageError> {
         let option = if let CachedImageOption::Resize(_) = self.option {

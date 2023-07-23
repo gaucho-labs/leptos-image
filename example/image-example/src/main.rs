@@ -7,7 +7,7 @@ async fn main() {
     };
     use leptos::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use leptos_image::{cache::cache_app_images, handlers::image_cache_handler};
+    use leptos_image::*;
     use start_axum::app::*;
     use start_axum::fileserv::file_and_error_handler;
 
@@ -27,7 +27,7 @@ async fn main() {
     let leptos_options = conf.leptos_options;
     let root = leptos_options.site_root.clone();
 
-    cache_app_images(root, |cx: Scope| view! {cx, <App/>})
+    cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 1)
         .await
         .expect("Failed to cache images");
 
@@ -35,6 +35,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
         .leptos_routes(&leptos_options, routes, |cx| {
+            provide_image_context(cx);
             view! { cx,
                    <App/>
             }

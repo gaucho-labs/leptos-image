@@ -1,6 +1,6 @@
 use crate::error_template::{AppError, ErrorTemplate};
 use leptos::*;
-use leptos_image::{Image, ImageProvider};
+use leptos_image::Image;
 use leptos_meta::*;
 use leptos_router::*;
 
@@ -12,25 +12,23 @@ pub fn App(cx: Scope) -> impl IntoView {
     view! { cx,
         <Stylesheet id="leptos" href="/pkg/start-axum.css"/>
         <Title text="Welcome to Leptos"/>
-        <ImageProvider>
-            <Router fallback=|cx| {
-                let mut outside_errors = Errors::default();
-                outside_errors.insert_with_default_key(AppError::NotFound);
-                view! { cx, <ErrorTemplate outside_errors/> }
-                    .into_view(cx)
-            }>
-                <main>
-                    <Routes>
-                        <Route
-                            path=""
-                            view=|cx| {
-                                view! { cx, <HomePage/> }
-                            }
-                        />
-                    </Routes>
-                </main>
-            </Router>
-        </ImageProvider>
+        <Router fallback=|cx| {
+            let mut outside_errors = Errors::default();
+            outside_errors.insert_with_default_key(AppError::NotFound);
+            view! { cx, <ErrorTemplate outside_errors/> }
+                .into_view(cx)
+        }>
+            <main>
+                <Routes>
+                    <Route
+                        path="/"
+                        view=|cx| {
+                            view! { cx, <HomePage/> }
+                        }
+                    />
+                </Routes>
+            </main>
+        </Router>
     }
 }
 

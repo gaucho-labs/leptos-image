@@ -7,51 +7,29 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+/// Provides Image Cache Context to the given scope.
+/// This should go in your SSR main function's Router.
 ///
-/// Provides image blur previews to the app.
+/// Leptos + Axum Example
 ///
-///
-/// Example
 /// ```
-/// #[component]
-/// pub fn MyApp(cx: Scope) -> impl IntoView {
-/// view! { cx,
-///     <ImageProvider>
-///         // The rest of your app (router, stylesheet, etc.)...
-///         <MyAppInner/>
-///     </ImageProvider>
-/// }
+///let app = Router::new()
+///     .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+///     .leptos_routes(&leptos_options, routes, |cx| {
+///         provide_image_context(cx);
+///         view! { cx,
+///             <App/>
+///         }
+///     })
 /// ```
-#[allow(unused_braces)]
-#[component]
-pub fn ImageProvider(cx: Scope, children: ChildrenFn) -> impl IntoView {
-    let resource = create_blocking_resource(
-        cx,
-        || "images",
-        |_| async {
-            IMAGE_CACHE
-                .read()
-                .map(|c| c.clone())
-                .map(|c| c.into_iter().collect::<Vec<_>>())
-                .unwrap_or(vec![])
-        },
-    );
+#[cfg(feature = "ssr")]
+pub fn provide_image_context(cx: Scope) {
+    let cache = IMAGE_CACHE
+        .read()
+        .map(|c| c.clone())
+        .unwrap_or(HashMap::new());
 
-    let children = store_value(cx, children);
-
-    view! { cx,
-        <Transition fallback= move || children.with_value(|c| c(cx))>
-            {move || {
-                resource
-                    .read(cx)
-                    .map(move |cache| {
-                        let cache = cache.into_iter().collect::<HashMap<_, _>>();
-                        provide_context(cx, ImageCacheContext(Rc::new(cache)));
-                        { children.with_value(|children| children(cx)) }
-                    })
-            }}
-        </Transition>
-    }
+    provide_context(cx, ImageCacheContext(Rc::new(cache)));
 }
 
 // CacheImage -> Blur Image SVG data (literally the svg data, not a file_path).

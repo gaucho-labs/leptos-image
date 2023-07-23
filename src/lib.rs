@@ -1,11 +1,16 @@
-pub mod cache;
+#![forbid(unsafe_code)]
+
+mod cache;
 mod image;
-pub mod introspect;
-pub mod optimizer;
+mod introspect;
+mod optimizer;
 mod provider;
 mod routes;
 
+#[cfg(feature = "ssr")]
+pub use cache::*;
 pub use image::*;
+#[cfg(feature = "ssr")]
 pub use provider::*;
 #[cfg(feature = "ssr")]
-pub use routes::*;
+pub use routes::handlers::*;
