@@ -5,19 +5,15 @@
 pub mod handlers {
     use crate::add_image_cache;
     use crate::optimizer::{CachedImage, CachedImageOption, CreateImageError};
-    use axum::response::Response as AxumResponse;
-    use axum::{
-        body::boxed,
-        body::Body,
-        extract::State,
-        http::{self, Request, Response, Uri},
-        response::IntoResponse,
-    };
-    use leptos::LeptosOptions;
-    use std::convert::Infallible;
-    use tower::ServiceExt;
-    use tower_http::services::fs::ServeFileSystemResponseBody;
-    use tower_http::services::ServeDir;
+    use actix_files::NamedFile;
+    use actix_web::body::{BoxBody, MessageBody};
+    use actix_web::http::header::HeaderValue;
+
+    use actix_web::http::{self, StatusCode, Uri};
+    use actix_web::HttpRequest as ActixRequest;
+    use actix_web::{Error, HttpResponse as ActixResponse};
+
+    use std::path::PathBuf;
 
     /// Returns the cached image if it exists.
     ///
@@ -29,41 +25,35 @@ pub mod handlers {
     ///  app.route("/cache/image", get(image_cache_handler))
     /// ```
     ///
-    pub async fn image_cache_handler(
-        State(options): State<LeptosOptions>,
-        req: Request<Body>,
-    ) -> AxumResponse {
-        let root = options.site_root.clone();
+    pub async fn image_cache_handler(root: String, req: ActixRequest) -> ActixResponse {
+        let root = root.clone();
         let cache_result = check_cache_image(req.uri().clone(), &root).await;
 
         match cache_result {
             Ok(Some(uri)) => {
-                let mut response = execute_file_handler(uri, &root).await.unwrap();
+                let file = execute_file_handler(uri, &root, req)
+                    .await
+                    .expect("couldn't get file");
                 let cache_control =
                     format!("public, stale-while-revalidate, max-age={}", 60 * 60 * 24);
-                let headers = response.headers_mut();
-                headers.append(
+
+                let mut response = file;
+                response.headers_mut().insert(
                     http::header::CACHE_CONTROL,
-                    http::HeaderValue::from_str(&cache_control).unwrap(),
+                    HeaderValue::from_str(&cache_control).unwrap(),
                 );
-                response.map(boxed).into_response()
+                response
             }
 
-            Ok(None) => Response::builder()
-                .status(404)
-                .body("Invalid Image.".to_string())
-                .unwrap()
-                .map(boxed)
-                .into_response(),
+            Ok(None) => {
+                let body = BoxBody::new(MessageBody::boxed("Invalid Image.".to_string()));
+                ActixResponse::with_body(StatusCode::NOT_FOUND, body)
+            }
 
             Err(e) => {
                 log::error!("Failed to create image: {:?}", e);
-                Response::builder()
-                    .status(500)
-                    .body("Error creating image".to_string())
-                    .unwrap()
-                    .map(boxed)
-                    .into_response()
+                let body = BoxBody::new(MessageBody::boxed("Error creating image.".to_string()));
+                ActixResponse::with_body(StatusCode::NOT_FOUND, body)
             }
         }
     }
@@ -71,12 +61,14 @@ pub mod handlers {
     async fn execute_file_handler(
         uri: Uri,
         root: &str,
-    ) -> Result<Response<ServeFileSystemResponseBody>, Infallible> {
-        let req = Request::builder()
-            .uri(uri.clone())
-            .body(Body::empty())
-            .unwrap();
-        ServeDir::new(root).oneshot(req).await
+        req: ActixRequest,
+    ) -> Result<ActixResponse, Error> {
+        let file_path = PathBuf::from(format!("{}/{}", root, uri));
+        let named_file = NamedFile::open(file_path)?;
+
+        // Convert NamedFile into HttpResponse
+        let response = named_file.into_response(&req);
+        Ok(response)
     }
 
     async fn check_cache_image(uri: Uri, root: &str) -> Result<Option<Uri>, CreateImageError> {

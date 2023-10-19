@@ -4,7 +4,7 @@
 #[cfg(feature = "ssr")]
 pub async fn cache_app_images<IV>(
     root: String,
-    app_fn: impl Fn(leptos::Scope) -> IV + 'static,
+    app_fn: impl Fn() -> IV + 'static,
     parallelism: usize,
     before_mount: impl Fn() + 'static,
     after_mount: impl Fn() + 'static,
