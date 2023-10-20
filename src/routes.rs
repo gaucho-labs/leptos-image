@@ -5,6 +5,11 @@
 pub mod handlers {
     use crate::add_image_cache;
     use crate::optimizer::{CachedImage, CachedImageOption, CreateImageError};
+    use actix_web::web::Bytes;
+    use actix_web::web::Data;
+    use actix_web::*;
+    use axum::extract::FromRequest;
+    use axum::http::request::Parts;
     use axum::response::Response as AxumResponse;
     use axum::{
         body::boxed,
@@ -13,6 +18,7 @@ pub mod handlers {
         http::{self, Request, Response, Uri},
         response::IntoResponse,
     };
+
     use leptos::LeptosOptions;
     use std::convert::Infallible;
     use tower::ServiceExt;
@@ -28,7 +34,55 @@ pub mod handlers {
     ///  // Add route for image cache.
     ///  app.route("/cache/image", get(image_cache_handler))
     /// ```
-    ///
+
+    pub async fn actix_handler(
+        req: HttpRequest,
+        body: Bytes,
+        state: web::Data<LeptosOptions>,
+    ) -> HttpResponse {
+        let method: hyper::Method = req.method().clone();
+        let uri: Uri = req.uri().clone();
+        let headers: actix_web::http::header::HeaderMap = req.headers().clone();
+
+        let mut axum_request: Request<Bytes> = Request::builder()
+            .method(method)
+            .uri(uri)
+            .body(body)
+            // loop throiugh headers and add them to the request.
+            .unwrap();
+
+        for (name, value) in headers.iter() {
+            if let Ok(name) = hyper::header::HeaderName::from_bytes(name.as_str().as_bytes()) {
+                if let Ok(value) =
+                    hyper::header::HeaderValue::from_str(value.to_str().unwrap_or(""))
+                {
+                    axum_request.headers_mut().insert(name, value);
+                }
+            }
+        }
+
+        let axum_request = axum_request.map(|b| b.into());
+        let state: std::sync::Arc<LeptosOptions> = state.into_inner();
+
+        let leptos_options: &LeptosOptions = state.as_ref();
+
+        let state = axum::extract::State(leptos_options.clone());
+        let axum_response = image_cache_handler(state, axum_request).await;
+        let response = convert_response(axum_response).await;
+        let response = response.expect("Failed to convert response");
+        response
+    }
+
+    pub async fn convert_response(response: impl IntoResponse) -> Result<HttpResponse, Infallible> {
+        let response = response.into_response();
+        let (parts, body) = response.into_parts();
+        let body = match hyper::body::to_bytes(body).await {
+            Ok(bytes) => bytes.to_vec(),
+            Err(_) => return Ok(HttpResponse::InternalServerError().finish()),
+        };
+        Ok(HttpResponse::build(parts.status).body(body))
+    }
+
     pub async fn image_cache_handler(
         State(options): State<LeptosOptions>,
         req: Request<Body>,

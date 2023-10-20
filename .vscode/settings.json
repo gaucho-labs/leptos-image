@@ -1,3 +1,9 @@
 {
-  "rust-analyzer.linkedProjects": ["./example/image-example/Cargo.toml"]
+  "rust-analyzer.linkedProjects": [
+    "./example/image-example/Cargo.toml",
+    "./example/image-example-actix/Cargo.toml",
+    "./example/image-example-actix/Cargo.toml",
+    "./example/image-example-actix/Cargo.toml",
+    "./example/image-example-actix/Cargo.toml"
+  ]
 }

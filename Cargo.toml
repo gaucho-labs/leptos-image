@@ -17,12 +17,13 @@ leptos_meta = { version = "0.5.1", default-features = false }
 
 wasm-bindgen = "=0.2.87"
 web-sys = { version = "0.3", optional = true, features = ["HtmlImageElement"] }
-
+actix-web = { version = "4.4.0", optional = true }
+hyper = "0.14"
 tokio = { version = "1.25.0", features = ["rt", "fs"], optional = true }
 axum = { version = "0.6.4", optional = true }
 tower = { version = "0.4.13", optional = true }
 tower-http = { version = "0.4", features = ["fs"], optional = true }
-
+web = "0.2.12"
 image = { version = "0.24.6", optional = true }
 webp = { version = "0.2.2", optional = true }
 serde = { version = "1.0.164", features = ["derive"] }
@@ -48,5 +49,6 @@ ssr = [
     "dep:futures",
     "dep:glob",
     "dep:log",
+    "dep:actix-web",
 ]
 hydrate = ["dep:web-sys", "leptos/hydrate", "leptos_router/hydrate"]
