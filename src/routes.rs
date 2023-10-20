@@ -100,7 +100,10 @@ pub mod handlers {
                 Ok(Some(new_uri))
             }
             Some(Err(err)) => Err(err),
-            None => Ok(None),
+            None => {
+                eprintln!("There is no Image for the given url: {}", url);
+                Ok(None)
+            }
         }
     }
 
@@ -109,6 +112,7 @@ pub mod handlers {
     async fn add_file_to_cache(root: &str, image: CachedImage) {
         if let CachedImageOption::Blur(_) = image.option {
             let path = image.get_file_path_from_root(root);
+
             let created = tokio::fs::read_to_string(path).await.ok();
             if let Some(created) = created {
                 add_image_cache([(image, created)]);

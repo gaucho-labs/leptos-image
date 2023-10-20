@@ -11,20 +11,20 @@ readme = "README.md"
 repository = "https://github.com/nicoburniske/leptos-image"
 
 [dependencies]
-leptos = { version = "0.4.2", default-features = false }
-leptos_router = { version = "0.4.2", default-features = false }
-leptos_meta = { version = "0.4.2", default-features = false }
+leptos = { version = "0.5.1", default-features = false }
+leptos_router = { version = "0.5.1", default-features = false }
+leptos_meta = { version = "0.5.1", default-features = false }
 
 wasm-bindgen = "=0.2.87"
-web-sys = { version = "0.3", optional = true, features = ["HtmlImageElement"]}
+web-sys = { version = "0.3", optional = true, features = ["HtmlImageElement"] }
 
 tokio = { version = "1.25.0", features = ["rt", "fs"], optional = true }
 axum = { version = "0.6.4", optional = true }
 tower = { version = "0.4.13", optional = true }
 tower-http = { version = "0.4", features = ["fs"], optional = true }
 
-image = { version = "0.24.6", optional = true}
-webp = { version= "0.2.2", optional = true}
+image = { version = "0.24.6", optional = true }
+webp = { version = "0.2.2", optional = true }
 serde = { version = "1.0.164", features = ["derive"] }
 serde_qs = "0.12.0"
 thiserror = "1.0.38"
@@ -35,10 +35,18 @@ glob = { version = "0.3.1", optional = true }
 log = { version = "0.4.19", optional = true }
 
 [features]
-ssr = [ 
-    "leptos_router/ssr", "leptos_meta/ssr" , "leptos/ssr",
-    "dep:webp", "dep:image", 
-    "dep:tokio", "dep:axum", "dep:tower", "dep:tower-http",
-    "dep:futures", "dep:glob", "dep:log"
+ssr = [
+    "leptos_router/ssr",
+    "leptos_meta/ssr",
+    "leptos/ssr",
+    "dep:webp",
+    "dep:image",
+    "dep:tokio",
+    "dep:axum",
+    "dep:tower",
+    "dep:tower-http",
+    "dep:futures",
+    "dep:glob",
+    "dep:log",
 ]
-hydrate = [ "dep:web-sys","leptos/hydrate", "leptos_router/hydrate" ]
+hydrate = ["dep:web-sys", "leptos/hydrate", "leptos_router/hydrate"]
