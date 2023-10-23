@@ -30,7 +30,7 @@ pub fn Image(
     #[prop(default = true)]
     lazy: bool,
     /// Image alt text.
-    #[prop(into, optional)]
+    #[prop(into)]
     alt: String,
     /// Style class for image.
     #[prop(into, optional)]

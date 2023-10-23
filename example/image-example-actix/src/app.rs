@@ -107,6 +107,7 @@ fn ImageComparison(width: u32, height: u32) -> impl IntoView {
                     <h1>"Optimized with blur preview"</h1>
                 </div>
                 <Image
+                alt="cute ferris"
                     src="/cute_ferris.png"
                     width
                     height
