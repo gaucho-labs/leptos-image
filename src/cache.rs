@@ -23,7 +23,7 @@ where
             let root = root.clone();
             tokio::task::spawn(async move { img.create_image(&root).await })
                 .await
-                .unwrap()
+                .expect("Failed to spawn task")
         })
         .collect();
 

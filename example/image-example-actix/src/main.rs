@@ -15,9 +15,13 @@ async fn main() -> std::io::Result<()> {
     println!("listening on http://{}", &addr);
     let root = conf.leptos_options.site_root.clone();
 
-    cache_app_images(root, || view! { <App/>}, 2, || (), || ())
-        .await
-        .expect("Failed to cache images");
+    // run cache app images only in server
+
+    let cached = cache_app_images(root, || view! { <App/>}, 2, || (), || ()).await;
+
+    if let Err(e) = cached {
+        println!("Failed to cache images: {:?}", e);
+    }
 
     HttpServer::new(move || {
         let leptos_options = &conf.leptos_options;
@@ -26,10 +30,10 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(leptos_options.to_owned()))
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
+            .service(Files::new("/assets", site_root))
             .leptos_routes(leptos_options.to_owned(), routes.to_owned(), App)
             .service(Files::new("/pkg", format!("{site_root}/pkg")))
             // serve other assets from the `assets` directory
-            .service(Files::new("/assets", site_root))
             .route("/cache/image", web::get().to(actix_handler))
             // serve JS/WASM/CSS from `pkg`
             // serve the favicon from /favicon.ico

@@ -6,10 +6,9 @@ pub mod handlers {
     use crate::add_image_cache;
     use crate::optimizer::{CachedImage, CachedImageOption, CreateImageError};
     use actix_web::web::Bytes;
-    use actix_web::web::Data;
+
     use actix_web::*;
-    use axum::extract::FromRequest;
-    use axum::http::request::Parts;
+
     use axum::response::Response as AxumResponse;
     use axum::{
         body::boxed,
@@ -70,6 +69,7 @@ pub mod handlers {
         let axum_response = image_cache_handler(state, axum_request).await;
         let response = convert_response(axum_response).await;
         let response = response.expect("Failed to convert response");
+
         response
     }
 
@@ -80,7 +80,23 @@ pub mod handlers {
             Ok(bytes) => bytes.to_vec(),
             Err(_) => return Ok(HttpResponse::InternalServerError().finish()),
         };
-        Ok(HttpResponse::build(parts.status).body(body))
+        let headers = parts
+            .headers
+            .iter()
+            .map(|(name, value)| {
+                (
+                    name.as_str().to_string(),
+                    value.to_str().unwrap().to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+        // Append headers to the response
+        let mut response = HttpResponse::Ok();
+        headers.into_iter().for_each(|(name, value)| {
+            response.append_header((name, value));
+        });
+        let response = response.body(body);
+        Ok(response)
     }
 
     pub async fn image_cache_handler(

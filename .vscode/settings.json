@@ -5,5 +5,8 @@
     "./example/image-example-actix/Cargo.toml",
     "./example/image-example-actix/Cargo.toml",
     "./example/image-example-actix/Cargo.toml"
-  ]
+  ],
+  "rust-analyzer.cargo.features": [
+    "ssr"
+  ],
 }

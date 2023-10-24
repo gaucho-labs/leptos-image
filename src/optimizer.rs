@@ -155,6 +155,18 @@ where
             height,
             quality,
         }) => {
+            // it doesn't support svg yet. how can I fix that?
+            let path: &std::path::Path = source_path.as_ref();
+
+            if path.extension() == Some(std::ffi::OsStr::new("svg")) {
+                // convert_svg_to_webp(source_path, save_path, width, height, quality)?;
+                return Ok(());
+
+                // return Err(CreateImageError::IOError(std::io::Error::new(
+                //     std::io::ErrorKind::Other,
+                //     "SVG is not supported",
+                // )));
+            }
             let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
             let new_img = img.resize(
                 width,
@@ -183,6 +195,19 @@ where
     P: AsRef<std::path::Path> + AsRef<std::ffi::OsStr>,
 {
     use webp::*;
+
+    // it doesn't support svg yet. how can I fix that?
+    let path: &std::path::Path = source_path.as_ref();
+
+    if path.extension() == Some(std::ffi::OsStr::new("svg")) {
+        // convert_svg_to_webp(source_path, save_path, width, height, quality)?;
+        return Ok("".to_string());
+
+        // return Err(CreateImageError::IOError(std::io::Error::new(
+        //     std::io::ErrorKind::Other,
+        //     "SVG is not supported",
+        // )));
+    }
 
     let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
 
@@ -253,6 +278,49 @@ where
         None => Result::Ok(()),
     }
 }
+
+// fn convert_svg_to_webp<P>(
+//     source_path: P,
+//     save_path: P,
+//     width: u32,
+//     height: u32,
+//     quality: u8,
+// ) -> Result<(), CreateImageError>
+// where
+//     P: AsRef<std::path::Path> + AsRef<std::ffi::OsStr>,
+// {
+//     use resvg::usvg;
+//     use resvg::usvg::TreeParsing;
+
+//     use webp::*;
+
+//     let data = std::fs::read_to_string(source_path).expect("Failed to read SVG file as String");
+//     let tree_img =
+//         usvg::Tree::from_str(&data, &usvg::Options::default()).expect("Failed to parse SVG");
+
+//     let mut path_builder = PathBuilder::new();
+//     tree_img.clip_paths(|path| {
+//         eprintln!("Path: {:?}", path);
+//     });
+//     let mut pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
+//     let mut paint = PixmapPaint::default();
+//     paint.quality = FilterQuality::Bicubic;
+
+//     // get path from the save_path with png extension
+//     let path: &std::path::Path = save_path.as_ref();
+//     let path = path.with_extension("png");
+//     pixmap.save_png(&path).unwrap();
+
+//     let img = image::open(&path).unwrap();
+
+//     // Create the WebP encoder for the above image
+//     let encoder: Encoder = Encoder::from_image(&img).unwrap();
+
+//     // Encode the image at a specified quality 0-100
+//     let webp: WebPMemory = encoder.encode(quality as f32);
+//     create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
+//     std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
+// }
 
 // Test module
 #[cfg(test)]
