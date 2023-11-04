@@ -199,13 +199,7 @@ where
     let path: &std::path::Path = source_path.as_ref();
 
     if path.extension() == Some(std::ffi::OsStr::new("svg")) {
-        // convert_svg_to_webp(source_path, save_path, width, height, quality)?;
-        return Ok("".to_string());
-
-        // return Err(CreateImageError::IOError(std::io::Error::new(
-        //     std::io::ErrorKind::Other,
-        //     "SVG is not supported",
-        // )));
+        return make_blur_svg(path, blur);
     }
 
     let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
@@ -333,6 +327,84 @@ where
     std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
 }
 
+#[cfg(feature = "ssr")]
+fn make_blur_svg<P>(source_path: P, blur: Blur) -> Result<String, CreateImageError>
+where
+    P: AsRef<std::path::Path> + AsRef<std::ffi::OsStr>,
+{
+    use std::path::Path;
+
+    use svg_to_png::{
+        render::{make_surface_into_dynamic_image, render_image},
+        svgs::get_svg_handler,
+    };
+    use webp::*;
+
+    let path: &std::path::Path = source_path.as_ref();
+    let handler = get_svg_handler(Path::new(path));
+
+    let handler = match handler {
+        Ok(handler) => handler,
+        Err(e) => {
+            return Err(CreateImageError::IOError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e,
+            )))
+        }
+    };
+
+    let Blur {
+        width,
+        height,
+        svg_height,
+        svg_width,
+        sigma,
+    } = blur;
+
+    let mut surface =
+        // if you want to resize the image then you can use the width and height parameters
+        render_image(handler.width, handler.height, handler.handle, None).map_err(|e| {
+            CreateImageError::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+        })?;
+
+    let image = make_surface_into_dynamic_image(&mut surface).map_err(|e| {
+        CreateImageError::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+    })?;
+
+    let image = image.resize(width, height, image::imageops::FilterType::Nearest);
+
+    // Create the WebP encoder for the above image
+    let encoder: Encoder = Encoder::from_image(&image).map_err(|e| {
+        CreateImageError::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+    })?;
+    // Encode the image at a specified quality 0-100
+    let webp: WebPMemory = encoder.encode(80.0);
+
+    // Encode the image to base64
+    use base64::{engine::general_purpose, Engine as _};
+    let encoded = general_purpose::STANDARD.encode(&*webp);
+
+    let uri = format!("data:image/webp;base64,{}", encoded);
+    // Encode the image at a specified quality 0-100
+    let uri = format!("data:image/webp;base64,{}", encoded);
+
+    let svg = format!(
+        r#"
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100%" height="100%" viewBox="0 0 {svg_width} {svg_height}" preserveAspectRatio="none">
+    <filter id="a" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"> 
+        <feGaussianBlur stdDeviation="{sigma}" edgeMode="duplicate"/> 
+        <feComponentTransfer>
+            <feFuncA type="discrete" tableValues="1 1"/> 
+        </feComponentTransfer> 
+    </filter> 
+    <image filter="url(#a)" x="0" y="0" height="100%" width="100%" href="{uri}"/>
+</svg>
+"#,
+    );
+
+    Ok(svg)
+}
+
 // Test module
 
 #[cfg(test)]
@@ -394,6 +466,43 @@ mod optimizer_tests {
         );
         assert!(result.is_ok());
         println!("{}", result.unwrap());
+    }
+
+    #[test]
+    fn create_blur_svg() {
+        let result = create_image_blur(
+            "example/image-example-actix/assets/example.svg".to_string(),
+            Blur {
+                width: 25,
+                height: 25,
+                svg_height: 100,
+                svg_width: 100,
+                sigma: 20,
+            },
+        );
+        assert!(result.is_ok());
+        println!("{}", result.unwrap());
+    }
+    #[test]
+    fn create_and_save_blur_svg() {
+        let spec = CachedImage {
+            src: "example/image-example-actix/assets/example.svg".to_string(),
+            option: CachedImageOption::Blur(Blur {
+                width: 25,
+                height: 25,
+                svg_height: 100,
+                svg_width: 100,
+                sigma: 20,
+            }),
+        };
+
+        let file_path = spec.get_file_path();
+
+        let result = create_optimized_image(spec.option, TEST_IMAGE.to_string(), file_path.clone());
+
+        assert!(result.is_ok());
+
+        println!("Saved SVG at {file_path}");
     }
 
     #[test]
