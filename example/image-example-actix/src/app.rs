@@ -120,14 +120,13 @@ fn ImageComparison(width: u32, height: u32) -> impl IntoView {
                 <div>
                     <h1>"Normal Image"</h1>
                 </div>
-                <img src="/cute_ferris.png" class="test-image"/>
-                // <Image
-                // width
-                // height
-                // quality=85
-                // blur=true alt="" src="/example.svg"/>
-                // <img src="/example.svg"  width="500" height="500"/>
-
+                // <img src="/cute_ferris.png" class="test-image"/>
+                <Image
+                width
+                height
+                quality=85
+                class="test-image"
+                blur=true alt="this is test svg" src="/example.svg"/>
             </div>
         </div>
     }

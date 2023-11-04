@@ -157,29 +157,28 @@ where
         }) => {
             // it doesn't support svg yet. how can I fix that?
             let path: &std::path::Path = source_path.as_ref();
+            let source_path: &std::path::Path = source_path.as_ref();
+            let save_path: &std::path::Path = save_path.as_ref();
 
-            if path.extension() == Some(std::ffi::OsStr::new("svg")) {
-                // convert_svg_to_webp(source_path, save_path, width, height, quality)?;
-                return Ok(());
+            // check if the file exists and if it's an svg.
 
-                // return Err(CreateImageError::IOError(std::io::Error::new(
-                //     std::io::ErrorKind::Other,
-                //     "SVG is not supported",
-                // )));
+            if path.extension() == Some(std::ffi::OsStr::new("svg")) && path.exists() {
+                return convert_svg_to_webp(&source_path, &save_path, width, height, quality);
+            } else {
+                let img = image::open(&source_path).map_err(|e| CreateImageError::ImageError(e))?;
+                let new_img = img.resize(
+                    width,
+                    height,
+                    // Cubic Filter.
+                    image::imageops::FilterType::CatmullRom,
+                );
+                // Create the WebP encoder for the above image
+                let encoder: Encoder = Encoder::from_image(&new_img).unwrap();
+                // Encode the image at a specified quality 0-100
+                let webp: WebPMemory = encoder.encode(quality as f32);
+                create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
+                std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
             }
-            let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
-            let new_img = img.resize(
-                width,
-                height,
-                // Cubic Filter.
-                image::imageops::FilterType::CatmullRom,
-            );
-            // Create the WebP encoder for the above image
-            let encoder: Encoder = Encoder::from_image(&new_img).unwrap();
-            // Encode the image at a specified quality 0-100
-            let webp: WebPMemory = encoder.encode(quality as f32);
-            create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
-            std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
         }
         CachedImageOption::Blur(blur) => {
             let svg = create_image_blur(source_path, blur)?;
@@ -279,54 +278,66 @@ where
     }
 }
 
-// fn convert_svg_to_webp<P>(
-//     source_path: P,
-//     save_path: P,
-//     width: u32,
-//     height: u32,
-//     quality: u8,
-// ) -> Result<(), CreateImageError>
-// where
-//     P: AsRef<std::path::Path> + AsRef<std::ffi::OsStr>,
-// {
-//     use resvg::usvg;
-//     use resvg::usvg::TreeParsing;
+#[cfg(feature = "ssr")]
+fn convert_svg_to_webp<P>(
+    source_path: P,
+    save_path: P,
+    width: u32,
+    height: u32,
+    quality: u8,
+) -> Result<(), CreateImageError>
+where
+    P: AsRef<std::path::Path> + AsRef<std::ffi::OsStr>,
+{
+    use std::path::Path;
 
-//     use webp::*;
+    use svg_to_png::{
+        render::{make_surface_into_dynamic_image, render_image},
+        svgs::get_svg_handler,
+    };
+    use webp::*;
 
-//     let data = std::fs::read_to_string(source_path).expect("Failed to read SVG file as String");
-//     let tree_img =
-//         usvg::Tree::from_str(&data, &usvg::Options::default()).expect("Failed to parse SVG");
+    let path: &std::path::Path = source_path.as_ref();
+    let handler = get_svg_handler(Path::new(path));
 
-//     let mut path_builder = PathBuilder::new();
-//     tree_img.clip_paths(|path| {
-//         eprintln!("Path: {:?}", path);
-//     });
-//     let mut pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
-//     let mut paint = PixmapPaint::default();
-//     paint.quality = FilterQuality::Bicubic;
+    let handler = match handler {
+        Ok(handler) => handler,
+        Err(e) => {
+            return Err(CreateImageError::IOError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e,
+            )))
+        }
+    };
 
-//     // get path from the save_path with png extension
-//     let path: &std::path::Path = save_path.as_ref();
-//     let path = path.with_extension("png");
-//     pixmap.save_png(&path).unwrap();
+    let mut surface =
+        // if you want to resize the image then you can use the width and height parameters
+        render_image(handler.width, handler.height, handler.handle, None).map_err(|e| {
+            CreateImageError::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+        })?;
 
-//     let img = image::open(&path).unwrap();
+    let image = make_surface_into_dynamic_image(&mut surface).map_err(|e| {
+        CreateImageError::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+    })?;
 
-//     // Create the WebP encoder for the above image
-//     let encoder: Encoder = Encoder::from_image(&img).unwrap();
+    let image = image.resize(width, height, image::imageops::FilterType::Nearest);
 
-//     // Encode the image at a specified quality 0-100
-//     let webp: WebPMemory = encoder.encode(quality as f32);
-//     create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
-//     std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
-// }
+    // Create the WebP encoder for the above image
+    let encoder: Encoder = Encoder::from_image(&image).map_err(|e| {
+        CreateImageError::IOError(std::io::Error::new(std::io::ErrorKind::Other, e))
+    })?;
+
+    // Encode the image at a specified quality 0-100
+    let webp: WebPMemory = encoder.encode(quality as f32);
+    create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
+    std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
+}
 
 // Test module
+
 #[cfg(test)]
 mod optimizer_tests {
-    use super::*;
-
+    use crate::optimizer::*;
     #[test]
     fn url_encode() {
         let img = CachedImage {
@@ -421,6 +432,55 @@ mod optimizer_tests {
         let file_path = spec.get_file_path();
 
         let result = create_optimized_image(spec.option, TEST_IMAGE.to_string(), file_path.clone());
+
+        assert!(result.is_ok());
+
+        println!("Saved WebP at {file_path}");
+    }
+    #[test]
+    fn convert_svg_to_web() {
+        let spec = CachedImage {
+            src: "example/image-example-actix/assets/example.svg".to_string(),
+            option: CachedImageOption::Resize(Resize {
+                quality: 75,
+                width: 100,
+                height: 100,
+            }),
+        };
+
+        let file_path = spec.get_file_path();
+
+        let result = convert_svg_to_webp(
+            "example/image-example-actix/assets/example.svg".to_string(),
+            "example/image-example-actix/assets/example.webp".to_string(),
+            261,
+            271,
+            100,
+        );
+
+        assert!(result.is_ok());
+
+        println!("Saved WebP at {file_path}");
+    }
+
+    #[test]
+    fn convert_svg_to_web_with_optimizer() {
+        let spec = CachedImage {
+            src: "example/image-example-actix/assets/example.svg".to_string(),
+            option: CachedImageOption::Resize(Resize {
+                quality: 75,
+                width: 200,
+                height: 200,
+            }),
+        };
+
+        let file_path = spec.get_file_path();
+
+        let result = create_optimized_image(
+            spec.option,
+            "example/image-example-actix/assets/example.svg".to_string(),
+            file_path.clone(),
+        );
 
         assert!(result.is_ok());
 

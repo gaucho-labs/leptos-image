@@ -14,7 +14,8 @@ where
 {
     use crate::optimizer::CreateImageError;
 
-    let images = crate::introspect::find_app_images_with_mount(app_fn, before_mount, after_mount);
+    let images: Vec<crate::optimizer::CachedImage> =
+        crate::introspect::find_app_images_with_mount(app_fn, before_mount, after_mount);
 
     let futures: Vec<_> = images
         .iter()
@@ -42,6 +43,7 @@ where
         .filter_map(|img| match img.option {
             crate::optimizer::CachedImageOption::Blur(_) => {
                 let path = img.get_file_path_from_root(&root);
+                eprintln!("Caching image: {:?}", path);
 
                 Some((img, path))
             }

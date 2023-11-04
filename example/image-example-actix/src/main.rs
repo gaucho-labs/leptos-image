@@ -17,11 +17,9 @@ async fn main() -> std::io::Result<()> {
 
     // run cache app images only in server
 
-    let cached = cache_app_images(root, || view! { <App/>}, 2, || (), || ()).await;
-
-    if let Err(e) = cached {
-        println!("Failed to cache images: {:?}", e);
-    }
+    cache_app_images(root, || view! { <App/>}, 2, || (), || ())
+        .await
+        .expect("Failed to cache images");
 
     HttpServer::new(move || {
         let leptos_options = &conf.leptos_options;
