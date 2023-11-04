@@ -50,7 +50,7 @@ pub(crate) fn add_image_cache<I>(images: I)
 where
     I: IntoIterator<Item = (CachedImage, String)>,
 {
-    let mut cache = IMAGE_CACHE.write().unwrap();
+    let mut cache = IMAGE_CACHE.write().expect("Failed to lock image cache");
     for (image, svg) in images.into_iter() {
         cache.insert(image, svg);
     }

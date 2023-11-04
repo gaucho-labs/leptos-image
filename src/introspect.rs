@@ -35,8 +35,6 @@ where
         .map(|route| route.path().to_string())
         .collect();
 
-    eprintln!("Found paths: {:?}", paths);
-
     let app = {
         let app_fn = app_fn.clone();
         move || app_fn()
@@ -93,6 +91,7 @@ where
             after_mount();
 
             let images = context.0.borrow();
+
             images.clone()
         })
         .flatten()
