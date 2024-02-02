@@ -5,26 +5,26 @@ use leptos_meta::*;
 use leptos_router::*;
 
 #[component]
-pub fn App(cx: Scope) -> impl IntoView {
+pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
-    provide_meta_context(cx);
-    provide_image_context(cx);
+    provide_meta_context();
+    provide_image_context();
 
-    view! { cx,
+    view! {
         <Stylesheet id="leptos" href="/pkg/start-axum.css"/>
         <Title text="Welcome to Leptos"/>
-        <Router fallback=|cx| {
+        <Router fallback=|| {
             let mut outside_errors = Errors::default();
             outside_errors.insert_with_default_key(AppError::NotFound);
-            view! { cx, <ErrorTemplate outside_errors/> }
-                .into_view(cx)
+            view! {  <ErrorTemplate outside_errors/> }
+                .into_view()
         }>
             <main>
                 <Routes>
                     <Route
                         path=""
-                        view=|cx| {
-                            view! { cx,
+                        view=|| {
+                            view! {
                                 <div
                                     style:display="flex"
                                     style:width="20rem"
@@ -45,20 +45,20 @@ pub fn App(cx: Scope) -> impl IntoView {
                     >
                         <Route
                             path="/"
-                            view=|cx| {
-                                view! { cx, <h1>"Welcome to Leptos Image"</h1> }
+                            view=|| {
+                                view! {  <h1>"Welcome to Leptos Image"</h1> }
                             }
                         />
                         <Route
                             path="/1"
-                            view=|cx| {
-                                view! { cx, <ImageComparison width=500 height=500/> }
+                            view=|| {
+                                view! {  <ImageComparison width=500 height=500/> }
                             }
                         />
                         <Route
                             path="/2"
-                            view=|cx| {
-                                view! { cx, <ImageComparison width=1000 height=1000/> }
+                            view=|| {
+                                view! {  <ImageComparison width=1000 height=1000/> }
                             }
                         />
                     </Route>
@@ -69,8 +69,8 @@ pub fn App(cx: Scope) -> impl IntoView {
 }
 
 #[component]
-fn ImageComparison(cx: Scope, width: u32, height: u32) -> impl IntoView {
-    view! { cx,
+fn ImageComparison(width: u32, height: u32) -> impl IntoView {
+    view! {
         <div
             style:margin-left="auto"
             style:margin-right="auto"

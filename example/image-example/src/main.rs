@@ -10,8 +10,9 @@ async fn main() {
     use leptos_image::*;
     use start_axum::app::*;
     use start_axum::fileserv::file_and_error_handler;
+    use tokio::net::TcpListener;
 
-    simple_logger::init_with_level(log::Level::Info).expect("couldn't initialize logging");
+    // simple_logger::init_with_level(log::Level::Info).expect("couldn't initialize logging");
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
@@ -21,21 +22,21 @@ async fn main() {
     let conf = get_configuration(None).await.unwrap();
     let leptos_options = conf.leptos_options;
     let addr = leptos_options.site_addr;
-    let routes = generate_route_list(|cx| view! { cx, <App/> }).await;
+    let routes = generate_route_list(App);
 
     let conf = get_configuration(None).await.unwrap();
     let leptos_options = conf.leptos_options;
     let root = leptos_options.site_root.clone();
 
-    cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 1, || (), || ())
+    cache_app_images(root, || view! { <App/>}, 1, || (), || ())
         .await
         .expect("Failed to cache images");
 
     // build our application with a route
     let app = Router::new()
         .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
-        .leptos_routes(&leptos_options, routes, |cx| {
-            view! { cx,
+        .leptos_routes(&leptos_options, routes, || {
+            view! {
                    <App/>
             }
         })
@@ -46,9 +47,9 @@ async fn main() {
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    log!("listening on http://{}", &addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    let listener = TcpListener::bind(&addr).await.unwrap();
+    logging::log!("listening on http://{}", &addr);
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }

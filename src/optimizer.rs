@@ -115,7 +115,7 @@ impl CachedImage {
         } else {
             "Blur"
         };
-        log::debug!("Creating {option} image for {}", &self.src);
+        tracing::debug!("Creating {option} image for {}", &self.src);
         let relative_path_created = self.get_file_path();
 
         let save_path = path_from_segments(vec![root, &relative_path_created]);

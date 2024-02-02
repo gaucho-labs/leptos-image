@@ -7,7 +7,6 @@ pub mod handlers {
     use crate::optimizer::{CachedImage, CachedImageOption, CreateImageError};
     use axum::response::Response as AxumResponse;
     use axum::{
-        body::boxed,
         body::Body,
         extract::State,
         http::{self, Request, Response, Uri},
@@ -46,23 +45,21 @@ pub mod handlers {
                     http::header::CACHE_CONTROL,
                     http::HeaderValue::from_str(&cache_control).unwrap(),
                 );
-                response.map(boxed).into_response()
+                response.into_response()
             }
 
             Ok(None) => Response::builder()
                 .status(404)
                 .body("Invalid Image.".to_string())
                 .unwrap()
-                .map(boxed)
                 .into_response(),
 
             Err(e) => {
-                log::error!("Failed to create image: {:?}", e);
+                tracing::error!("Failed to create image: {:?}", e);
                 Response::builder()
                     .status(500)
                     .body("Error creating image".to_string())
                     .unwrap()
-                    .map(boxed)
                     .into_response()
             }
         }
