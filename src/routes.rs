@@ -80,36 +80,34 @@ pub mod handlers {
         let url = uri.to_string();
         let maybe_cache_image = CachedImage::from_url_encoded(&url).ok();
 
-        let maybe_created = {
-            if let Some(ref img) = maybe_cache_image {
-                Some(img.create_image(root).await)
+        let (cache_image, maybe_created) = {
+            if let Some(img) = maybe_cache_image {
+                (img, img.create_image(root).await)
             } else {
-                None
+                return Ok(None);
             }
         };
 
-        match maybe_created {
-            Some(Ok((file_path, created))) => {
-                if created && maybe_cache_image.is_some() {
-                    add_file_to_cache(root, maybe_cache_image.unwrap()).await;
-                }
-                let new_uri = ("/".to_string() + &file_path).parse::<Uri>().unwrap();
-                Ok(Some(new_uri))
+        maybe_created.map(|created| {
+            add_file_to_cache(root, cache_image).await;
+            let file_path = cache_image.get_file_path_from_root(root);
+            let uri_string = "/".to_string() + &file_path;
+            let maybe_uri = (uri_string).parse::<Uri>().ok();
+
+            if let Some(uri) = maybe_uri {
+                Ok(Some(uri))
+            } else {
+                tracing::error!("Failed to create uri: File path {file_path}");
+                Ok(None)
             }
-            Some(Err(err)) => Err(err),
-            None => Ok(None),
-        }
+        });
     }
 
     // When the image is created, it will be added to the cache.
     // Mostly helpful for dev server startup.
     async fn add_file_to_cache(root: &str, image: CachedImage) {
         if let CachedImageOption::Blur(_) = image.option {
-            let path = image.get_file_path_from_root(root);
-            let created = tokio::fs::read_to_string(path).await.ok();
-            if let Some(created) = created {
-                add_image_cache([(image, created)]);
-            }
+            add_image_cache(root, vec![image]);
             return;
         }
     }

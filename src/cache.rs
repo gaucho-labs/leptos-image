@@ -36,19 +36,11 @@ where
         .into_iter()
         .collect::<Result<Vec<_>, CreateImageError>>()?;
 
-    let image_data = images
+    let images = images
         .into_iter()
-        .filter_map(|img| match img.option {
-            crate::optimizer::CachedImageOption::Blur(_) => {
-                let path = img.get_file_path_from_root(&root);
-                Some((img, path))
-            }
-            _ => None,
-        })
-        // Read all svg files into memory.
-        .filter_map(|(img, path)| std::fs::read_to_string(path).ok().map(|svg| (img, svg)))
+        .filter(|img| matches!(img.option, crate::optimizer::CachedImageOption::Cache))
         .collect::<Vec<_>>();
 
-    crate::provider::add_image_cache(image_data);
+    crate::provider::add_image_cache(root, image_data);
     Ok(())
 }

@@ -1,10 +1,8 @@
 use crate::optimizer::CachedImage;
+use dashmap::DashMap;
 use lazy_static::lazy_static;
 use leptos::*;
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::Arc;
 
 /// Provides Image Cache Context to the given scope.
 /// This should go in the base of your Leptos <App/>.
@@ -26,10 +24,9 @@ pub fn provide_image_context() {
         || (),
         |_| async {
             IMAGE_CACHE
-                .read()
-                .map(|c| c.clone())
-                .map(|c| c.into_iter().collect::<Vec<_>>())
-                .unwrap_or(vec![])
+                .iter()
+                .map(|entry| (entry.key().clone(), entry.value().clone()))
+                .collect::<Vec<_>>()
         },
     );
 
@@ -43,18 +40,27 @@ pub(crate) fn use_image_cache_resource() -> ImageResource {
 }
 
 #[cfg(feature = "ssr")]
-pub(crate) fn add_image_cache<I>(images: I)
+pub(crate) async fn add_image_cache<S, I>(root: S, images: I)
 where
-    I: IntoIterator<Item = (CachedImage, String)>,
+    S: AsRef<str>,
+    I: IntoIterator<Item = CachedImage>,
 {
-    let mut cache = IMAGE_CACHE.write().unwrap();
-    for (image, svg) in images.into_iter() {
-        cache.insert(image, svg);
-    }
+    images
+        .into_iter()
+        .filter(|image| image.option == crate::optimizer::CachedImageOption::Blur)
+        .filter(|image| IMAGE_CACHE.get(&image).is_none())
+        .for_each(|image| {
+            let path = image.get_file_path_from_root(root);
+            if let Some(data) = tokio::fs::read_to_string(path).await.ok() {
+                IMAGE_CACHE.insert(image, data);
+            } else {
+                tracing::error!("Failed to read image: {:?}", image.path);
+            }
+        });
 }
 
 lazy_static! {
     // CacheImage -> Blur Image SVG data (literally the svg data, not a file_path).
-    pub(crate) static ref IMAGE_CACHE: Arc<RwLock<HashMap<CachedImage, String>>> =
-        Arc::new(RwLock::new(HashMap::new()));
+    pub(crate) static ref IMAGE_CACHE: Arc<DashMap<CachedImage, String>> =
+        Arc::new(DashMap::new());
 }
