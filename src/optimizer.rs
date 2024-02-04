@@ -98,39 +98,59 @@ impl CachedImage {
     }
 
     #[cfg(feature = "ssr")]
-    pub(crate) fn get_file_path_from_root(&self, root: &str) -> String {
-        let path = path_from_segments(vec![root, &self.get_file_path()]);
-        path.as_path().to_string_lossy().to_string()
-    }
-
-    #[cfg(feature = "ssr")]
     pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
         let url = url.split('?').filter(|s| *s != "?").last().unwrap_or(url);
         let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(url);
         result
     }
+}
 
-    /// Returns the relative path as a string of the created image (relative from `root`).
-    /// Also returns a bool indicating if the image was created (rather than already existing).
-    #[cfg(feature = "ssr")]
-    pub async fn create_image(&self, root: &str) -> Result<bool, CreateImageError> {
-        let option = if let CachedImageOption::Resize(_) = self.option {
-            "Resize"
-        } else {
-            "Blur"
-        };
-        tracing::debug!("Creating {option} image for {}", &self.src);
-        let relative_path_created = self.get_file_path();
+#[cfg(feature = "ssr")]
+#[derive(Debug, Clone)]
+pub struct ImageOptimizer {
+    root_file_path: String,
+    // cache_prefix: String,
+    semaphore: std::sync::Arc<tokio::sync::Semaphore>,
+}
+
+#[cfg(feature = "ssr")]
+impl ImageOptimizer {
+    pub fn new(root_file_path: String, parallelism: usize) -> Self {
+        let semaphore = tokio::sync::Semaphore::new(parallelism);
+        let semaphore = std::sync::Arc::new(semaphore);
+        Self {
+            root_file_path,
+            semaphore,
+        }
+    }
+
+    pub async fn create_image(&self, cache_image: &CachedImage) -> Result<bool, CreateImageError> {
+        let root = self.root_file_path.as_str();
+        {
+            let option = if let CachedImageOption::Resize(_) = cache_image.option {
+                "Resize"
+            } else {
+                "Blur"
+            };
+            tracing::debug!("Creating {option} image for {}", &cache_image.src);
+        }
+
+        let relative_path_created = self.get_file_path(&cache_image);
 
         let save_path = path_from_segments(vec![root, &relative_path_created]);
-        let absolute_src_path = path_from_segments(vec![root, &self.src]);
+        let absolute_src_path = path_from_segments(vec![root, &cache_image.src]);
 
         if file_exists(&save_path).await {
             Ok(false)
         } else {
+            let _ = self
+                .semaphore
+                .acquire()
+                .await
+                .expect("Failed to acquire semaphore");
             let task = tokio::task::spawn_blocking({
-                let config = self.clone();
-                move || create_optimized_image(config.option, absolute_src_path, save_path)
+                let option = cache_image.option.clone();
+                move || create_optimized_image(option, absolute_src_path, save_path)
             });
 
             match task.await {
@@ -139,6 +159,34 @@ impl CachedImage {
                 Ok(Ok(_)) => Ok(true),
             }
         }
+    }
+
+    #[cfg(feature = "ssr")]
+    pub(crate) fn get_file_path_from_root(&self, cache_image: &CachedImage) -> String {
+        let path = path_from_segments(vec![
+            self.root_file_path.as_ref(),
+            &self.get_file_path(cache_image),
+        ]);
+        path.as_path().to_string_lossy().to_string()
+    }
+
+    pub fn get_file_path(&self, cache_image: &CachedImage) -> String {
+        use base64::{engine::general_purpose, Engine as _};
+        // I'm worried this name will become too long.
+        // names are limited to 255 bytes on most filesystems.
+
+        let encode = serde_qs::to_string(&cache_image).unwrap();
+        let encode = general_purpose::STANDARD.encode(encode);
+
+        let mut path = path_from_segments(vec!["cache/image", &encode, &cache_image.src]);
+
+        if let CachedImageOption::Resize { .. } = cache_image.option {
+            path.set_extension("webp");
+        } else {
+            path.set_extension("svg");
+        };
+
+        path.as_path().to_string_lossy().to_string()
     }
 }
 

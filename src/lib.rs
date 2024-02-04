@@ -12,6 +12,8 @@ pub use cache::*;
 pub use image::*;
 #[cfg(feature = "ssr")]
 pub use introspect::*;
+#[cfg(feature = "ssr")]
+pub use optimizer::ImageOptimizer;
 pub use provider::*;
 #[cfg(feature = "ssr")]
 pub use routes::handlers::*;

@@ -40,9 +40,8 @@ pub(crate) fn use_image_cache_resource() -> ImageResource {
 }
 
 #[cfg(feature = "ssr")]
-pub(crate) async fn add_image_cache<S, I>(root: S, images: I)
+pub(crate) async fn add_image_cache<I>(optimizer: &crate::optimizer::ImageOptimizer, images: I)
 where
-    S: AsRef<str>,
     I: IntoIterator<Item = CachedImage>,
 {
     let images = images
@@ -51,7 +50,7 @@ where
         .filter(|image| IMAGE_CACHE.get(&image).is_none());
 
     for image in images {
-        let path = image.get_file_path_from_root(root.as_ref());
+        let path = optimizer.get_file_path_from_root(&image);
         if let Some(data) = tokio::fs::read_to_string(path).await.ok() {
             IMAGE_CACHE.insert(image, data);
         } else {
