@@ -38,9 +38,9 @@ where
 
     let images = images
         .into_iter()
-        .filter(|img| matches!(img.option, crate::optimizer::CachedImageOption::Cache))
+        .filter(|img| matches!(img.option, crate::optimizer::CachedImageOption::Blur(_)))
         .collect::<Vec<_>>();
 
-    crate::provider::add_image_cache(root, image_data);
+    crate::provider::add_image_cache(root, images).await;
     Ok(())
 }

@@ -43,12 +43,15 @@ pub struct Blur {
 }
 
 #[cfg(feature = "ssr")]
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CreateImageError {
     // Unexpected(String),
-    ImageError(image::ImageError),
-    JoinError(tokio::task::JoinError),
-    IOError(std::io::Error),
+    #[error("Image Error: {0}")]
+    ImageError(#[from] image::ImageError),
+    #[error("Join Error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
 }
 
 impl CachedImage {
@@ -80,8 +83,7 @@ impl CachedImage {
     }
 
     // TODO: Fix this. Super Yuck.
-    #[allow(dead_code)]
-    #[cfg(feature = "ssr")]
+    #[cfg(any(feature = "ssr", test))]
     pub(crate) fn from_file_path(path: &str) -> Option<Self> {
         use base64::{engine::general_purpose, Engine as _};
         path.split('/')
@@ -156,7 +158,7 @@ where
             height,
             quality,
         }) => {
-            let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
+            let img = image::open(source_path)?;
             let new_img = img.resize(
                 width,
                 height,
@@ -167,13 +169,16 @@ where
             let encoder: Encoder = Encoder::from_image(&new_img).unwrap();
             // Encode the image at a specified quality 0-100
             let webp: WebPMemory = encoder.encode(quality as f32);
-            create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
-            std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
+            create_nested_if_needed(&save_path)?;
+            std::fs::write(save_path, &*webp)?;
+
+            Ok(())
         }
         CachedImageOption::Blur(blur) => {
             let svg = create_image_blur(source_path, blur)?;
-            create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
-            std::fs::write(save_path, &*svg).map_err(|e| CreateImageError::IOError(e))
+            create_nested_if_needed(&save_path)?;
+            std::fs::write(save_path, &*svg)?;
+            Ok(())
         }
     }
 }

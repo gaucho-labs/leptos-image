@@ -80,34 +80,34 @@ pub mod handlers {
         let url = uri.to_string();
         let maybe_cache_image = CachedImage::from_url_encoded(&url).ok();
 
-        let (cache_image, maybe_created) = {
+        let cache_image = {
             if let Some(img) = maybe_cache_image {
-                (img, img.create_image(root).await)
+                let _ = img.create_image(root).await?;
+                img
             } else {
                 return Ok(None);
             }
         };
 
-        maybe_created.map(|created| {
-            add_file_to_cache(root, cache_image).await;
-            let file_path = cache_image.get_file_path_from_root(root);
-            let uri_string = "/".to_string() + &file_path;
-            let maybe_uri = (uri_string).parse::<Uri>().ok();
+        let file_path = cache_image.get_file_path_from_root(root);
 
-            if let Some(uri) = maybe_uri {
-                Ok(Some(uri))
-            } else {
-                tracing::error!("Failed to create uri: File path {file_path}");
-                Ok(None)
-            }
-        });
+        add_file_to_cache(root, cache_image).await;
+        let uri_string = "/".to_string() + &file_path;
+        let maybe_uri = (uri_string).parse::<Uri>().ok();
+
+        if let Some(uri) = maybe_uri {
+            Ok(Some(uri))
+        } else {
+            tracing::error!("Failed to create uri: File path {file_path}");
+            Ok(None)
+        }
     }
 
     // When the image is created, it will be added to the cache.
     // Mostly helpful for dev server startup.
     async fn add_file_to_cache(root: &str, image: CachedImage) {
         if let CachedImageOption::Blur(_) = image.option {
-            add_image_cache(root, vec![image]);
+            add_image_cache(root, vec![image]).await;
             return;
         }
     }

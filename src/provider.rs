@@ -45,18 +45,19 @@ where
     S: AsRef<str>,
     I: IntoIterator<Item = CachedImage>,
 {
-    images
+    let images = images
         .into_iter()
-        .filter(|image| image.option == crate::optimizer::CachedImageOption::Blur)
-        .filter(|image| IMAGE_CACHE.get(&image).is_none())
-        .for_each(|image| {
-            let path = image.get_file_path_from_root(root);
-            if let Some(data) = tokio::fs::read_to_string(path).await.ok() {
-                IMAGE_CACHE.insert(image, data);
-            } else {
-                tracing::error!("Failed to read image: {:?}", image.path);
-            }
-        });
+        .filter(|image| matches!(image.option, crate::optimizer::CachedImageOption::Blur(_)))
+        .filter(|image| IMAGE_CACHE.get(&image).is_none());
+
+    for image in images {
+        let path = image.get_file_path_from_root(root.as_ref());
+        if let Some(data) = tokio::fs::read_to_string(path).await.ok() {
+            IMAGE_CACHE.insert(image, data);
+        } else {
+            tracing::error!("Failed to read image: {:?}", image);
+        }
+    }
 }
 
 lazy_static! {
