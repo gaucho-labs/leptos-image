@@ -82,16 +82,24 @@ pub mod handlers {
 
         let cache_image = {
             if let Some(img) = maybe_cache_image {
-                let _ = img.create_image(root).await?;
+                let result = img.create_image(root).await;
+
+                if let Ok(true) = result {
+                    tracing::info!("Created Image: {:?}", img);
+                }
+
+                result?;
+
                 img
             } else {
                 return Ok(None);
             }
         };
 
-        let file_path = cache_image.get_file_path_from_root(root);
+        let file_path = cache_image.get_file_path();
 
         add_file_to_cache(root, cache_image).await;
+
         let uri_string = "/".to_string() + &file_path;
         let maybe_uri = (uri_string).parse::<Uri>().ok();
 

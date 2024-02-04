@@ -82,8 +82,9 @@ impl CachedImage {
         path.as_path().to_string_lossy().to_string()
     }
 
+    #[allow(dead_code)]
+    #[cfg(feature = "ssr")]
     // TODO: Fix this. Super Yuck.
-    #[cfg(any(feature = "ssr", test))]
     pub(crate) fn from_file_path(path: &str) -> Option<Self> {
         use base64::{engine::general_purpose, Engine as _};
         path.split('/')
@@ -125,7 +126,7 @@ impl CachedImage {
         let absolute_src_path = path_from_segments(vec![root, &self.src]);
 
         if file_exists(&save_path).await {
-            Ok((false))
+            Ok(false)
         } else {
             let task = tokio::task::spawn_blocking({
                 let config = self.clone();
@@ -135,7 +136,7 @@ impl CachedImage {
             match task.await {
                 Err(join_error) => Err(CreateImageError::JoinError(join_error)),
                 Ok(Err(err)) => Err(err),
-                Ok(Ok(_)) => Ok((true)),
+                Ok(Ok(_)) => Ok(true),
             }
         }
     }
