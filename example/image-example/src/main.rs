@@ -33,7 +33,7 @@ async fn main() {
 
     let state = AppState {
         leptos_options: leptos_options.clone(),
-        optimizer: ImageOptimizer::new(root, 1),
+        optimizer: ImageOptimizer::new("/cache/image", root, 1),
     };
 
     // Build Router.

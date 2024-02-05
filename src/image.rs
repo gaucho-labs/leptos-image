@@ -66,48 +66,60 @@ pub fn Image(
         }
     };
 
-    let opt_image = opt_image.get_url_encoded();
+    // Retrieve value from Cache if it exists. Doing this per-image to allow image introspection.
+    let resource = crate::use_image_cache_resource();
 
-    if blur {
-        // Retrieve value from Cache if it exists. Doing this per-image to allow image introspection.
-        let resource = crate::use_image_cache_resource();
+    let blur_image = store_value(blur_image);
+    let opt_image = store_value(opt_image);
+    let alt = store_value(alt);
+    let class = store_value(class.map(|c| c.into_attribute_boxed()));
 
-        let blur_image = store_value(blur_image);
-        let opt_image = store_value(opt_image);
-        let alt = store_value(alt);
-        let class = store_value(class.map(|c| c.into_attribute_boxed()));
-
-        view! {
-            <Suspense fallback=|| ()>
-                {move || {
-                    resource
-                        .get()
-                        .map(|images| {
+    view! {
+        <Suspense fallback=|| ()>
+            {move || {
+                resource
+                    .get()
+                    .map(|config| {
+                        let images = config.cache;
+                        let handler_path = config.api_handler_path;
+                        let opt_image = opt_image.get_value().get_url_encoded(&handler_path);
+                        if blur {
                             let placeholder_svg = images
                                 .iter()
                                 .find(|(c, _)| blur_image.with_value(|b| b == c))
                                 .map(|c| c.1.clone());
+
                             let svg = {
                                 if let Some(svg_data) = placeholder_svg {
                                     SvgImage::InMemory(svg_data)
                                 } else {
-                                    SvgImage::Request(blur_image.get_value().get_url_encoded())
+                                    SvgImage::Request(
+                                        blur_image.get_value().get_url_encoded(&handler_path),
+                                    )
                                 }
                             };
-                            let opt_image = opt_image.get_value();
                             let class = class.get_value();
                             let alt = alt.get_value();
+
                             view! { <CacheImage lazy svg opt_image alt class=class priority/> }
                                 .into_view()
-                        })
-                }}
+                        } else {
+                            let loading = if lazy { "lazy" } else { "eager" };
+                            view! {
+                                <img
+                                    alt=alt.get_value()
+                                    class=class.get_value()
+                                    decoding="async"
+                                    loading=loading
+                                    src=opt_image
+                                />
+                            }
+                                .into_view()
+                        }
+                    })
+            }}
 
-            </Suspense>
-        }
-    } else {
-        let loading = if lazy { "lazy" } else { "eager" };
-        view! { <img alt=alt class=class decoding="async" loading=loading src=opt_image/> }
-            .into_view()
+        </Suspense>
     }
 }
 

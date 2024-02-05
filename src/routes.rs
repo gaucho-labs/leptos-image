@@ -74,8 +74,10 @@ where
         let options = leptos::LeptosOptions::from_ref(state);
         let optimizer = ImageOptimizer::from_ref(state);
 
+        let path = optimizer.api_handler_path.clone();
         let handler = move |req: Request<Body>| image_cache_handler_inner(options, optimizer, req);
-        self.route("/cache/image", axum::routing::get(handler))
+
+        self.route(&path, axum::routing::get(handler))
     }
 }
 

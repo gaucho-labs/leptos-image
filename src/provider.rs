@@ -25,7 +25,7 @@ pub fn provide_image_context() {
     let resource: ImageResource = create_blocking_resource(
         || (),
         |_| async {
-            get_image_cache()
+            get_image_config()
                 .await
                 .expect("Failed to retrieve image cache")
         },
@@ -34,21 +34,35 @@ pub fn provide_image_context() {
     leptos::provide_context(resource);
 }
 
-type ImageResource = Resource<(), Vec<(CachedImage, String)>>;
+type ImageResource = Resource<(), ImageConfig>;
+
+#[doc(hidden)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ImageConfig {
+    pub(crate) api_handler_path: String,
+    pub(crate) cache: Vec<(CachedImage, String)>,
+}
 
 pub(crate) fn use_image_cache_resource() -> ImageResource {
     use_context::<ImageResource>().expect("Missing Image Resource")
 }
 
 #[server(GetImageCache)]
-pub(crate) async fn get_image_cache() -> Result<Vec<(CachedImage, String)>, ServerFnError> {
+pub(crate) async fn get_image_config() -> Result<ImageConfig, ServerFnError> {
     let optimizer = use_optimizer()?;
 
-    Ok(optimizer
+    let cache = optimizer
         .cache
         .iter()
         .map(|entry| (entry.key().clone(), entry.value().clone()))
-        .collect())
+        .collect();
+
+    let api_handler_path = optimizer.api_handler_path.clone();
+
+    Ok(ImageConfig {
+        api_handler_path,
+        cache,
+    })
 }
 
 #[cfg(feature = "ssr")]

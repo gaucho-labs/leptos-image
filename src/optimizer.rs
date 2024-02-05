@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 #[derive(Debug, Clone)]
 pub struct ImageOptimizer {
+    pub(crate) api_handler_path: String,
     pub(crate) root_file_path: String,
     pub(crate) semaphore: std::sync::Arc<tokio::sync::Semaphore>,
     pub(crate) cache: std::sync::Arc<dashmap::DashMap<CachedImage, String>>,
@@ -12,13 +13,19 @@ pub struct ImageOptimizer {
 #[cfg(feature = "ssr")]
 impl ImageOptimizer {
     /// Creates a new ImageOptimizer.
+    /// api_handler_path is the path where the image handler is located in the server router.
     /// Parallelism denotes the number of images that can be created at once.
     /// Useful to limit to prevent overloading the server.
-    pub fn new(root_file_path: String, parallelism: usize) -> Self {
+    pub fn new(
+        api_handler_path: impl Into<String>,
+        root_file_path: impl Into<String>,
+        parallelism: usize,
+    ) -> Self {
         let semaphore = tokio::sync::Semaphore::new(parallelism);
         let semaphore = std::sync::Arc::new(semaphore);
         Self {
-            root_file_path,
+            api_handler_path: api_handler_path.into(),
+            root_file_path: root_file_path.into(),
             semaphore,
             cache: std::sync::Arc::new(dashmap::DashMap::new()),
         }
@@ -243,6 +250,7 @@ pub(crate) enum CachedImageOption {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+#[serde(rename = "r")]
 pub(crate) struct Resize {
     #[serde(rename = "w")]
     pub width: u32,
@@ -253,6 +261,7 @@ pub(crate) struct Resize {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+#[serde(rename = "b")]
 pub(crate) struct Blur {
     #[serde(rename = "w")]
     pub width: u32,
@@ -279,11 +288,9 @@ pub enum CreateImageError {
 }
 
 impl CachedImage {
-    pub(crate) fn get_url_encoded(&self) -> String {
-        // TODO: make this configurable?
-        let image_cache_path = "/cache/image";
+    pub(crate) fn get_url_encoded(&self, handler_path: impl AsRef<str>) -> String {
         let params = serde_qs::to_string(&self).unwrap();
-        format!("{}?{}", image_cache_path, params)
+        format!("{}?{}", handler_path.as_ref(), params)
     }
 
     #[cfg(feature = "ssr")]
@@ -375,7 +382,7 @@ mod optimizer_tests {
             }),
         };
 
-        let encoded = img.get_url_encoded();
+        let encoded = img.get_url_encoded("/cache/image/test");
         let decoded: CachedImage = CachedImage::from_url_encoded(&encoded).unwrap();
 
         dbg!(encoded);
