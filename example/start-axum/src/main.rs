@@ -32,7 +32,7 @@ async fn main() {
     let root = leptos_options.site_root.clone();
 
     let state = AppState {
-        leptos_options: leptos_options.clone(),
+        leptos_options,
         optimizer: ImageOptimizer::new("/cache/image", root, 1),
     };
 
