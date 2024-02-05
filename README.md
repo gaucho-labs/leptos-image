@@ -15,12 +15,21 @@ Enter Leptos `<Image/>`, a component that enhances the standard HTML `<img>` ele
 - **Low-Quality Image Placeholders (LQIP)**: Embeds SVG placeholders extracted from original images into server-side rendered HTML, improving perceived performance during image loading.
 - **Faster Page Load**: Prioritizes critical images, impacting Largest Contentful Paint (LCP), with the `priority` prop by adding a preload `<link>` to the document head, accelerating load times.
 
+## Version compatibility for Leptos and Leptos Image
+
+The table below shows the compatible versions of `leptos_image` for each `leptos` version. Ensure you are using compatible versions to avoid potential issues.
+
+| `leptos` version | `leptos_image` version |
+|------------------|------------------------|
+| 0.6.*            | 0.2.*                  |
+
+
 ## Installation
 
 To add `leptos_image` to your project, use cargo:
 
 ```bash
-cargo add leptos_image
+cargo add leptos_image --optional
 ```
 
 Enable the SSR feature in your `Cargo.toml`:
@@ -31,11 +40,16 @@ ssr = [
     "leptos_image/ssr",
     # other dependencies...
 ]
+
+hydrate = [
+    "leptos_image/hydrate", 
+    # other dependencies...
+]
 ```
 
 ## Quick Start
 
-This requires SSR + Leptos Axum integration
+> This requires SSR + Leptos Axum integration
 
 1. **Provide Image Context**: Initialize your Leptos application with `leptos_image::provide_image_context` to grant it read access to the image cache.
 
@@ -98,8 +112,6 @@ This requires SSR + Leptos Axum integration
 
 
 A full working example is available in the [examples](./example/start-axum) directory.
-### Example Implementation
-
 
 Now you can use the Image Component anywhere in your app!
 
