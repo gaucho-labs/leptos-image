@@ -6,7 +6,6 @@ use axum::{
     http::{Request, Response, Uri},
     response::IntoResponse,
 };
-use leptos::LeptosOptions;
 use std::convert::Infallible;
 use tower::ServiceExt;
 use tower_http::services::fs::ServeFileSystemResponseBody;
@@ -67,26 +66,20 @@ where
 impl<S> ImageCacheRoute<S> for axum::Router<S>
 where
     S: Clone + Send + Sync + 'static,
-    LeptosOptions: FromRef<S>,
     ImageOptimizer: FromRef<S>,
 {
     fn image_cache_route(self, state: &S) -> Self {
-        let options = leptos::LeptosOptions::from_ref(state);
         let optimizer = ImageOptimizer::from_ref(state);
 
         let path = optimizer.api_handler_path.clone();
-        let handler = move |req: Request<Body>| image_cache_handler_inner(options, optimizer, req);
+        let handler = move |req: Request<Body>| image_cache_handler_inner(optimizer, req);
 
         self.route(&path, axum::routing::get(handler))
     }
 }
 
-async fn image_cache_handler_inner(
-    options: LeptosOptions,
-    optimizer: ImageOptimizer,
-    req: Request<Body>,
-) -> AxumResponse {
-    let root = options.site_root.clone();
+async fn image_cache_handler_inner(optimizer: ImageOptimizer, req: Request<Body>) -> AxumResponse {
+    let root = optimizer.root_file_path.clone();
     let cache_result = check_cache_image(&optimizer, req.uri().clone()).await;
 
     match cache_result {
@@ -127,14 +120,14 @@ async fn check_cache_image(
     optimizer: &ImageOptimizer,
     uri: Uri,
 ) -> Result<Option<Uri>, CreateImageError> {
-    let url = uri.to_string();
-
     let cache_image = {
+        let url = uri.to_string();
+
         if let Some(img) = CachedImage::from_url_encoded(&url).ok() {
             let result = optimizer.create_image(&img).await;
 
             if let Ok(true) = result {
-                tracing::info!("Created Image: {:?}", img);
+                tracing::info!("Created Image: {}", img);
             }
 
             result?;
@@ -164,28 +157,16 @@ async fn check_cache_image(
 // Mostly helpful for dev server startup.
 async fn add_file_to_cache(optimizer: &ImageOptimizer, image: CachedImage) {
     if let CachedImageOption::Blur(_) = image.option {
-        add_image_cache(optimizer, vec![image]).await;
-    }
-}
-
-pub(crate) async fn add_image_cache<I>(optimizer: &crate::optimizer::ImageOptimizer, images: I)
-where
-    I: IntoIterator<Item = CachedImage>,
-{
-    let images = images
-        .into_iter()
-        .filter(|image| matches!(image.option, crate::optimizer::CachedImageOption::Blur(_)))
-        .filter(|image| optimizer.cache.get(&image).is_none());
-
-    for image in images {
-        let path = optimizer.get_file_path_from_root(&image);
-        match tokio::fs::read_to_string(path).await {
-            Ok(data) => {
-                optimizer.cache.insert(image, data);
-                tracing::info!("Added image to cache with size {}", optimizer.cache.len())
-            }
-            Err(e) => {
-                tracing::error!("Failed to read image: {:?} with error: {:?}", image, e);
+        if optimizer.cache.get(&image).is_none() {
+            let path = optimizer.get_file_path_from_root(&image);
+            match tokio::fs::read_to_string(path).await {
+                Ok(data) => {
+                    optimizer.cache.insert(image, data);
+                    tracing::debug!("Added image to cache (size {})", optimizer.cache.len())
+                }
+                Err(e) => {
+                    tracing::error!("Failed to read image [{}] with error: {:?}", image, e);
+                }
             }
         }
     }
