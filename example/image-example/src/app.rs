@@ -26,16 +26,25 @@ pub fn App() -> impl IntoView {
                             view! {
                                 <div
                                     style:display="flex"
-                                    style:width="20rem"
+                                    style:width="40rem"
                                     style:justify-content="space-between"
                                     style:margin-left="auto"
                                     style:margin-right="auto"
                                 >
                                     <div>
-                                        <a href="/1">"Example Medium"</a>
+                                        <a href="/">"Home"</a>
                                     </div>
                                     <div>
-                                        <a href="/2">"Example Large"</a>
+                                        <a href="/lg">"Large"</a>
+                                    </div>
+                                    <div>
+                                        <a href="/md">"Medium"</a>
+                                    </div>
+                                    <div>
+                                        <a href="/sm">"Small"</a>
+                                    </div>
+                                    <div>
+                                        <a href="/no-blur">"No Blur"</a>
                                     </div>
                                 </div>
                                 <Outlet/>
@@ -51,19 +60,31 @@ pub fn App() -> impl IntoView {
                         />
 
                         <Route
-                            path="/1"
+                            path="/lg"
                             view=|| {
-                                view! { <ImageComparison width=500 height=500/> }
+                                view! { <ImageComparison width=1000 height=1000 blur=true/> }
                             }
                         />
 
                         <Route
-                            path="/2"
+                            path="/md"
                             view=|| {
-                                view! { <ImageComparison width=1000 height=1000/> }
+                                view! { <ImageComparison width=500 height=500 blur=true/> }
                             }
                         />
 
+                        <Route
+                            path="/sm"
+                            view=|| {
+                                view! { <ImageComparison width=100 height=100 blur=true/> }
+                            }
+                        />
+                        <Route
+                            path="/no-blur"
+                            view=|| {
+                                view! { <ImageComparison width=1000 height=1000 blur=false/> }
+                            }
+                        />
                     </Route>
                 </Routes>
             </main>
@@ -72,7 +93,7 @@ pub fn App() -> impl IntoView {
 }
 
 #[component]
-fn ImageComparison(width: u32, height: u32) -> impl IntoView {
+fn ImageComparison(width: u32, height: u32, blur: bool) -> impl IntoView {
     view! {
         <div
             style:margin-left="auto"
@@ -84,9 +105,9 @@ fn ImageComparison(width: u32, height: u32) -> impl IntoView {
         >
             <div>
                 <div>
-                    <h1>"Optimized with blur preview"</h1>
+                    <h1>{format!("Optimized ({width} x {height}) with blur preview")}</h1>
                 </div>
-                <Image src="/cute_ferris.png" width height quality=85 blur=true class="test-image"/>
+                <Image src="/cute_ferris.png" width height quality=85 blur class="test-image"/>
             </div>
             <div>
                 <div>
