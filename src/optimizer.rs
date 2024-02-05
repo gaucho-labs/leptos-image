@@ -241,6 +241,19 @@ pub struct CachedImage {
     pub(crate) option: CachedImageOption,
 }
 
+impl std::fmt::Display for CachedImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.option {
+            CachedImageOption::Resize(resize) => write!(
+                f,
+                "ImageResize {} ({}x{} @ {}% quality)",
+                self.src, resize.width, resize.height, resize.quality,
+            ),
+            CachedImageOption::Blur(_) => write!(f, "ImageBlur {}", self.src),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
 pub(crate) enum CachedImageOption {
     #[serde(rename = "r")]
