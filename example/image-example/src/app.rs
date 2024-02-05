@@ -16,8 +16,7 @@ pub fn App() -> impl IntoView {
         <Router fallback=|| {
             let mut outside_errors = Errors::default();
             outside_errors.insert_with_default_key(AppError::NotFound);
-            view! {  <ErrorTemplate outside_errors/> }
-                .into_view()
+            view! { <ErrorTemplate outside_errors/> }.into_view()
         }>
             <main>
                 <Routes>
@@ -43,24 +42,28 @@ pub fn App() -> impl IntoView {
                             }
                         }
                     >
+
                         <Route
                             path="/"
                             view=|| {
-                                view! {  <h1>"Welcome to Leptos Image"</h1> }
+                                view! { <h1>"Welcome to Leptos Image"</h1> }
                             }
                         />
+
                         <Route
                             path="/1"
                             view=|| {
-                                view! {  <ImageComparison width=500 height=500/> }
+                                view! { <ImageComparison width=500 height=500/> }
                             }
                         />
+
                         <Route
                             path="/2"
                             view=|| {
-                                view! {  <ImageComparison width=1000 height=1000/> }
+                                view! { <ImageComparison width=1000 height=1000/> }
                             }
                         />
+
                     </Route>
                 </Routes>
             </main>
@@ -83,14 +86,7 @@ fn ImageComparison(width: u32, height: u32) -> impl IntoView {
                 <div>
                     <h1>"Optimized with blur preview"</h1>
                 </div>
-                <Image
-                    src="/cute_ferris.png"
-                    width
-                    height
-                    quality=85
-                    blur=true
-                    class="test-image"
-                />
+                <Image src="/cute_ferris.png" width height quality=85 blur=true class="test-image"/>
             </div>
             <div>
                 <div>

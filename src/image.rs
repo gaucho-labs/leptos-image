@@ -101,6 +101,7 @@ pub fn Image(
                                 .into_view()
                         })
                 }}
+
             </Suspense>
         }
     } else {
@@ -147,11 +148,11 @@ fn CacheImage(
 
     view! {
         {if priority {
-            view! {  <Link rel="preload" as_="image" href=opt_image.clone()/> }
-                .into_view()
+            view! { <Link rel="preload" as_="image" href=opt_image.clone()/> }.into_view()
         } else {
             ().into_view()
         }}
+
         <img
             alt=alt.clone()
             class=class
