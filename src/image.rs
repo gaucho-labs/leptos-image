@@ -66,17 +66,6 @@ pub fn Image(
         }
     };
 
-    // Load images into context for blur generation.
-    // Happens on server start.
-    #[cfg(feature = "ssr")]
-    if let Some(context) = use_context::<crate::introspect::IntrospectImageContext>() {
-        let mut images = context.0.borrow_mut();
-        images.push(opt_image.clone());
-        if blur {
-            images.push(blur_image.clone());
-        }
-    }
-
     let opt_image = opt_image.get_url_encoded();
 
     if blur {

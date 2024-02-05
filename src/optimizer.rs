@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/**
- * Service for creating cached/optimized images!
- */
-
+/// ImageOptimizer enables image optimization and caching.
 #[cfg(feature = "ssr")]
 #[derive(Debug, Clone)]
 pub struct ImageOptimizer {
@@ -14,6 +11,9 @@ pub struct ImageOptimizer {
 
 #[cfg(feature = "ssr")]
 impl ImageOptimizer {
+    /// Creates a new ImageOptimizer.
+    /// Parallelism denotes the number of images that can be created at once.
+    /// Useful to limit to prevent overloading the server.
     pub fn new(root_file_path: String, parallelism: usize) -> Self {
         let semaphore = tokio::sync::Semaphore::new(parallelism);
         let semaphore = std::sync::Arc::new(semaphore);
@@ -24,6 +24,36 @@ impl ImageOptimizer {
         }
     }
 
+    /// Creates a context function to provide the optimizer.
+    ///
+    /// ```
+    ///  
+    /// use leptos_image::*;
+    /// use leptos::*;
+    /// use axum::*;
+    /// use axum::routing::post;
+    /// use leptos_axum::{generate_route_list, handle_server_fns, LeptosRoutes};
+    ///
+    /// #[cfg(feature = "ssr")]
+    /// async fn your_main_function() {
+    ///   let options = get_configuration(None).await.unwrap().leptos_options;
+    ///   let optimizer = ImageOptimizer::new(options.site_root.clone(), 1);
+    ///   let routes = generate_route_list(App);
+    ///
+    ///   let router: Router<()> = Router::new()
+    ///    .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+    ///    .leptos_routes_with_context(&options, routes, optimizer.provide_context(), App)
+    ///    .with_state(options);
+    ///
+    ///   // Rest of your function ...
+    /// }
+    ///
+    /// #[component]
+    /// fn App() -> impl IntoView {
+    ///   ()
+    /// }
+    ///
+    /// ```
     pub fn provide_context(&self) -> impl Fn() + 'static + Clone + Send {
         let optimizer = self.clone();
         move || {

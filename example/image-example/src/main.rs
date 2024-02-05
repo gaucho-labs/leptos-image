@@ -6,7 +6,7 @@ async fn main() {
         Router,
     };
     use leptos::*;
-    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use leptos_axum::{generate_route_list, handle_server_fns, LeptosRoutes};
     use leptos_image::ImageOptimizer;
     use leptos_image::*;
     use start_axum::app::*;
@@ -41,7 +41,7 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+        .route("/api/*fn_name", post(handle_server_fns))
         // Add a handler for serving the cached images.
         .route("/cache/image", get(image_cache_handler))
         // Provide the optimizer to leptos context.

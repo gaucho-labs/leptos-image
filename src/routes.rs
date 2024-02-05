@@ -3,7 +3,6 @@
 // If cached, it will return the cached image.
 #[cfg(feature = "ssr")]
 pub mod handlers {
-    use crate::add_image_cache;
     use crate::optimizer::{CachedImage, CachedImageOption, CreateImageError, ImageOptimizer};
     use axum::response::Response as AxumResponse;
     use axum::{
@@ -18,14 +17,44 @@ pub mod handlers {
     use tower_http::services::fs::ServeFileSystemResponseBody;
     use tower_http::services::ServeDir;
 
-    /// Returns the cached image if it exists.
+    /// Returns the cached image if it exists. Requires an App State that contains the optimizer [`crate::ImageOptimizer`].
     ///
-    /// Example:
     /// ```
-    ///  // Create Axum Router.
-    ///  let app = Router::new();
-    ///  // Add route for image cache.
-    ///  app.route("/cache/image", get(image_cache_handler))
+    /// use leptos_image::*;
+    /// use leptos::*;
+    /// use axum::*;
+    /// use axum::routing::{get, post};
+    /// use leptos_axum::{generate_route_list, handle_server_fns, LeptosRoutes};
+    ///
+    ///
+    /// #[cfg(feature = "ssr")]
+    /// async fn your_main_function() {
+    ///   // Composite App State with the optimizer and leptos options.
+    ///   #[derive(Clone, axum::extract::FromRef)]
+    ///   struct AppState {
+    ///     leptos_options: leptos::LeptosOptions,
+    ///     optimizer: leptos_image::ImageOptimizer,
+    ///   }
+    ///
+    ///   let options = get_configuration(None).await.unwrap().leptos_options;
+    ///   let optimizer = ImageOptimizer::new(options.site_root.clone(), 1);
+    ///   let state = AppState {leptos_options: options, optimizer: optimizer.clone() };
+    ///   let routes = generate_route_list(App);
+    ///
+    ///   let router: Router<()> = Router::new()
+    ///    .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+    ///    // Add a handler for serving the cached images.
+    ///    .route("/cache/image", get(image_cache_handler))
+    ///    .leptos_routes_with_context(&state, routes, optimizer.provide_context(), App)
+    ///    .with_state(state);
+    ///
+    ///   // Rest of your function ...
+    /// }
+    ///
+    /// #[component]
+    /// fn App() -> impl IntoView {
+    ///   ()
+    /// }
     /// ```
     ///
     pub async fn image_cache_handler(
@@ -112,7 +141,29 @@ pub mod handlers {
     async fn add_file_to_cache(optimizer: &ImageOptimizer, image: CachedImage) {
         if let CachedImageOption::Blur(_) = image.option {
             add_image_cache(optimizer, vec![image]).await;
-            return;
+        }
+    }
+
+    pub(crate) async fn add_image_cache<I>(optimizer: &crate::optimizer::ImageOptimizer, images: I)
+    where
+        I: IntoIterator<Item = CachedImage>,
+    {
+        let images = images
+            .into_iter()
+            .filter(|image| matches!(image.option, crate::optimizer::CachedImageOption::Blur(_)))
+            .filter(|image| optimizer.cache.get(&image).is_none());
+
+        for image in images {
+            let path = optimizer.get_file_path_from_root(&image);
+            match tokio::fs::read_to_string(path).await {
+                Ok(data) => {
+                    optimizer.cache.insert(image, data);
+                    tracing::info!("Added image to cache with size {}", optimizer.cache.len())
+                }
+                Err(e) => {
+                    tracing::error!("Failed to read image: {:?} with error: {:?}", image, e);
+                }
+            }
         }
     }
 }
