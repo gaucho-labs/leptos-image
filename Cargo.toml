@@ -27,11 +27,8 @@ image = { version = "0.24", optional = true}
 webp = { version= "0.2", optional = true}
 serde = { version = "1.0", features = ["derive"] }
 serde_qs = "0.12"
-thiserror = "1"
+thiserror = { version = "1", optional = true }
 base64 = "0.21"
-lazy_static = "1"
-futures = { version = "0.3", optional = true }
-glob = { version = "0.3", optional = true }
 tracing = { version = "0.1", optional = true }
 dashmap = { version = "5", optional = true }
 
@@ -40,7 +37,7 @@ ssr = [
     "leptos_router/ssr", "leptos_meta/ssr" , "leptos/ssr",
     "dep:webp", "dep:image", 
     "dep:tokio", "dep:axum", "dep:tower", "dep:tower-http",
-    "dep:futures", "dep:glob", "dep:tracing", "dep:dashmap"
+    "dep:tracing", "dep:dashmap", "dep:thiserror"
 ]
 hydrate = [ "dep:web-sys","leptos/hydrate", "leptos_router/hydrate" ]
 
