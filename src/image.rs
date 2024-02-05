@@ -88,7 +88,6 @@ pub fn Image(
                                 .iter()
                                 .find(|(c, _)| blur_image.with_value(|b| b == c))
                                 .map(|c| c.1.clone());
-
                             let svg = {
                                 if let Some(svg_data) = placeholder_svg {
                                     SvgImage::InMemory(svg_data)
@@ -100,7 +99,6 @@ pub fn Image(
                             };
                             let class = class.get_value();
                             let alt = alt.get_value();
-
                             view! { <CacheImage lazy svg opt_image alt class=class priority/> }
                                 .into_view()
                         } else {

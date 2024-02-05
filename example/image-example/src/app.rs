@@ -79,12 +79,14 @@ pub fn App() -> impl IntoView {
                                 view! { <ImageComparison width=100 height=100 blur=true/> }
                             }
                         />
+
                         <Route
                             path="/no-blur"
                             view=|| {
                                 view! { <ImageComparison width=1000 height=1000 blur=false/> }
                             }
                         />
+
                     </Route>
                 </Routes>
             </main>
