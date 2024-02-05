@@ -5,62 +5,88 @@ use leptos_meta::*;
 use leptos_router::*;
 
 #[component]
-pub fn App(cx: Scope) -> impl IntoView {
+pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
-    provide_meta_context(cx);
-    provide_image_context(cx);
+    provide_meta_context();
+    provide_image_context();
 
-    view! { cx,
+    view! {
         <Stylesheet id="leptos" href="/pkg/start-axum.css"/>
         <Title text="Welcome to Leptos"/>
-        <Router fallback=|cx| {
+        <Router fallback=|| {
             let mut outside_errors = Errors::default();
             outside_errors.insert_with_default_key(AppError::NotFound);
-            view! { cx, <ErrorTemplate outside_errors/> }
-                .into_view(cx)
+            view! { <ErrorTemplate outside_errors/> }.into_view()
         }>
             <main>
                 <Routes>
                     <Route
                         path=""
-                        view=|cx| {
-                            view! { cx,
+                        view=|| {
+                            view! {
                                 <div
                                     style:display="flex"
-                                    style:width="20rem"
+                                    style:width="40rem"
                                     style:justify-content="space-between"
                                     style:margin-left="auto"
                                     style:margin-right="auto"
                                 >
                                     <div>
-                                        <a href="/1">"Example Medium"</a>
+                                        <a href="/">"Home"</a>
                                     </div>
                                     <div>
-                                        <a href="/2">"Example Large"</a>
+                                        <a href="/lg">"Large"</a>
+                                    </div>
+                                    <div>
+                                        <a href="/md">"Medium"</a>
+                                    </div>
+                                    <div>
+                                        <a href="/sm">"Small"</a>
+                                    </div>
+                                    <div>
+                                        <a href="/no-blur">"No Blur"</a>
                                     </div>
                                 </div>
                                 <Outlet/>
                             }
                         }
                     >
+
                         <Route
                             path="/"
-                            view=|cx| {
-                                view! { cx, <h1>"Welcome to Leptos Image"</h1> }
+                            view=|| {
+                                view! { <h1>"Welcome to Leptos Image"</h1> }
                             }
                         />
+
                         <Route
-                            path="/1"
-                            view=|cx| {
-                                view! { cx, <ImageComparison width=500 height=500/> }
+                            path="/lg"
+                            view=|| {
+                                view! { <ImageComparison width=1000 height=1000 blur=true/> }
                             }
                         />
+
                         <Route
-                            path="/2"
-                            view=|cx| {
-                                view! { cx, <ImageComparison width=1000 height=1000/> }
+                            path="/md"
+                            view=|| {
+                                view! { <ImageComparison width=500 height=500 blur=true/> }
                             }
                         />
+
+                        <Route
+                            path="/sm"
+                            view=|| {
+                                view! { <ImageComparison width=100 height=100 blur=true/> }
+                            }
+                        />
+
+                        <Route
+                            path="/no-blur"
+                            view=|| {
+                                view! { <ImageComparison width=1000 height=1000 blur=false/> }
+                            }
+                        />
+
                     </Route>
                 </Routes>
             </main>
@@ -69,8 +95,8 @@ pub fn App(cx: Scope) -> impl IntoView {
 }
 
 #[component]
-fn ImageComparison(cx: Scope, width: u32, height: u32) -> impl IntoView {
-    view! { cx,
+fn ImageComparison(width: u32, height: u32, blur: bool) -> impl IntoView {
+    view! {
         <div
             style:margin-left="auto"
             style:margin-right="auto"
@@ -81,16 +107,9 @@ fn ImageComparison(cx: Scope, width: u32, height: u32) -> impl IntoView {
         >
             <div>
                 <div>
-                    <h1>"Optimized with blur preview"</h1>
+                    <h1>{format!("Optimized ({width} x {height}) with blur preview")}</h1>
                 </div>
-                <Image
-                    src="/cute_ferris.png"
-                    width
-                    height
-                    quality=85
-                    blur=true
-                    class="test-image"
-                />
+                <Image src="/cute_ferris.png" width height quality=85 blur class="test-image"/>
             </div>
             <div>
                 <div>

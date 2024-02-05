@@ -1,16 +1,20 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::{
-        routing::{get, post},
-        Router,
-    };
+    use axum::{routing::post, Router};
     use leptos::*;
-    use leptos_axum::{generate_route_list, LeptosRoutes};
+    use leptos_axum::{generate_route_list, handle_server_fns, LeptosRoutes};
     use leptos_image::*;
     use start_axum::app::*;
     use start_axum::fileserv::file_and_error_handler;
+    use tokio::net::TcpListener;
 
+    // Composite App State with the optimizer and leptos options.
+    #[derive(Clone, axum::extract::FromRef)]
+    struct AppState {
+        leptos_options: leptos::LeptosOptions,
+        optimizer: leptos_image::ImageOptimizer,
+    }
     simple_logger::init_with_level(log::Level::Info).expect("couldn't initialize logging");
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
@@ -21,34 +25,32 @@ async fn main() {
     let conf = get_configuration(None).await.unwrap();
     let leptos_options = conf.leptos_options;
     let addr = leptos_options.site_addr;
-    let routes = generate_route_list(|cx| view! { cx, <App/> }).await;
+    let routes = generate_route_list(App);
 
     let conf = get_configuration(None).await.unwrap();
     let leptos_options = conf.leptos_options;
     let root = leptos_options.site_root.clone();
 
-    cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 1, || (), || ())
-        .await
-        .expect("Failed to cache images");
+    let state = AppState {
+        leptos_options: leptos_options.clone(),
+        optimizer: ImageOptimizer::new("/cache/image", root, 1),
+    };
 
-    // build our application with a route
+    // Build Router.
     let app = Router::new()
-        .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
-        .leptos_routes(&leptos_options, routes, |cx| {
-            view! { cx,
-                   <App/>
-            }
-        })
-        // Add route for image cache.
-        .route("/cache/image", get(image_cache_handler))
+        .route("/api/*fn_name", post(handle_server_fns))
+        // Add a handler for serving the cached images.
+        .image_cache_route(&state)
+        // Provide the optimizer to leptos context.
+        .leptos_routes_with_context(&state, routes, state.optimizer.provide_context(), App)
         .fallback(file_and_error_handler)
-        .with_state(leptos_options);
+        .with_state(state);
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
-    log!("listening on http://{}", &addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    let listener = TcpListener::bind(&addr).await.unwrap();
+    logging::log!("listening on http://{}", &addr);
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }

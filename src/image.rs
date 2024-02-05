@@ -10,7 +10,6 @@ use leptos_meta::Link;
 /// Images MUST be static. Will not work with dynamic images.
 #[component]
 pub fn Image(
-    cx: Scope,
     /// Image source. Should be path relative to root.
     #[prop(into)]
     src: String,
@@ -38,9 +37,9 @@ pub fn Image(
     class: Option<AttributeValue>,
 ) -> impl IntoView {
     if src.starts_with("http") {
-        debug_warn!("Image component only supports static images.");
+        logging::debug_warn!("Image component only supports static images.");
         let loading = if lazy { "lazy" } else { "eager" };
-        return view! { cx, <img src=src alt=alt class=class loading=loading/> }.into_view(cx);
+        return view! { <img src=src alt=alt class=class loading=loading/> }.into_view();
     }
 
     let blur_image = {
@@ -67,34 +66,24 @@ pub fn Image(
         }
     };
 
-    // Load images into context for blur generation.
-    // Happens on server start.
-    #[cfg(feature = "ssr")]
-    if let Some(context) = use_context::<crate::introspect::IntrospectImageContext>(cx) {
-        let mut images = context.0.borrow_mut();
-        images.push(opt_image.clone());
-        if blur {
-            images.push(blur_image.clone());
-        }
-    }
+    // Retrieve value from Cache if it exists. Doing this per-image to allow image introspection.
+    let resource = crate::use_image_cache_resource();
 
-    let opt_image = opt_image.get_url_encoded();
+    let blur_image = store_value(blur_image);
+    let opt_image = store_value(opt_image);
+    let alt = store_value(alt);
+    let class = store_value(class.map(|c| c.into_attribute_boxed()));
 
-    if blur {
-        // Retrieve value from Cache if it exists. Doing this per-image to allow image introspection.
-        let resource = crate::use_image_cache_resource(cx);
-
-        let blur_image = store_value(cx, blur_image);
-        let opt_image = store_value(cx, opt_image);
-        let alt = store_value(cx, alt);
-        let class = store_value(cx, class.map(|c| c.into_attribute_boxed(cx)));
-
-        view! { cx,
-            <Suspense fallback=|| ()>
-                {move || {
-                    resource
-                        .read(cx)
-                        .map(|images| {
+    view! {
+        <Suspense fallback=|| ()>
+            {move || {
+                resource
+                    .get()
+                    .map(|config| {
+                        let images = config.cache;
+                        let handler_path = config.api_handler_path;
+                        let opt_image = opt_image.get_value().get_url_encoded(&handler_path);
+                        if blur {
                             let placeholder_svg = images
                                 .iter()
                                 .find(|(c, _)| blur_image.with_value(|b| b == c))
@@ -103,22 +92,32 @@ pub fn Image(
                                 if let Some(svg_data) = placeholder_svg {
                                     SvgImage::InMemory(svg_data)
                                 } else {
-                                    SvgImage::Request(blur_image.get_value().get_url_encoded())
+                                    SvgImage::Request(
+                                        blur_image.get_value().get_url_encoded(&handler_path),
+                                    )
                                 }
                             };
-                            let opt_image = opt_image.get_value();
                             let class = class.get_value();
                             let alt = alt.get_value();
-                            view! { cx, <CacheImage lazy svg opt_image alt class=class priority/> }
-                                .into_view(cx)
-                        })
-                }}
-            </Suspense>
-        }
-    } else {
-        let loading = if lazy { "lazy" } else { "eager" };
-        view! { cx, <img alt=alt class=class decoding="async" loading=loading src=opt_image/> }
-            .into_view(cx)
+                            view! { <CacheImage lazy svg opt_image alt class=class priority/> }
+                                .into_view()
+                        } else {
+                            let loading = if lazy { "lazy" } else { "eager" };
+                            view! {
+                                <img
+                                    alt=alt.get_value()
+                                    class=class.get_value()
+                                    decoding="async"
+                                    loading=loading
+                                    src=opt_image
+                                />
+                            }
+                                .into_view()
+                        }
+                    })
+            }}
+
+        </Suspense>
     }
 }
 
@@ -129,7 +128,6 @@ enum SvgImage {
 
 #[component]
 fn CacheImage(
-    cx: Scope,
     svg: SvgImage,
     #[prop(into)] opt_image: String,
     #[prop(into, optional)] alt: String,
@@ -158,14 +156,13 @@ fn CacheImage(
 
     let loading = if lazy { "lazy" } else { "eager" };
 
-    view! { cx,
+    view! {
         {if priority {
-            view! { cx, <Link rel="preload" as_="image" href=opt_image.clone()/> }
-                .into_view(cx)
+            view! { <Link rel="preload" as_="image" href=opt_image.clone()/> }.into_view()
         } else {
-            view! { cx,  }
-                .into_view(cx)
+            ().into_view()
         }}
+
         <img
             alt=alt.clone()
             class=class

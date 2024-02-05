@@ -1,140 +1,148 @@
 use serde::{Deserialize, Serialize};
 
-/**
- * Service for creating cached/optimized images!
- */
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub struct CachedImage {
-    pub src: String,
-    pub option: CachedImageOption,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub enum CachedImageOption {
-    #[serde(rename = "r")]
-    Resize(Resize),
-    #[serde(rename = "b")]
-    Blur(Blur),
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub struct Resize {
-    #[serde(rename = "w")]
-    pub width: u32,
-    #[serde(rename = "h")]
-    pub height: u32,
-    #[serde(rename = "q")]
-    pub quality: u8,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub struct Blur {
-    #[serde(rename = "w")]
-    pub width: u32,
-    #[serde(rename = "h")]
-    pub height: u32,
-    #[serde(rename = "sw")]
-    pub svg_width: u32,
-    #[serde(rename = "sh")]
-    pub svg_height: u32,
-    #[serde(rename = "s")]
-    pub sigma: u8,
+/// ImageOptimizer enables image optimization and caching.
+#[cfg(feature = "ssr")]
+#[derive(Debug, Clone)]
+pub struct ImageOptimizer {
+    pub(crate) api_handler_path: String,
+    pub(crate) root_file_path: String,
+    pub(crate) semaphore: std::sync::Arc<tokio::sync::Semaphore>,
+    pub(crate) cache: std::sync::Arc<dashmap::DashMap<CachedImage, String>>,
 }
 
 #[cfg(feature = "ssr")]
-#[derive(Debug)]
-pub enum CreateImageError {
-    ImageError(image::ImageError),
-    JoinError(tokio::task::JoinError),
-    IOError(std::io::Error),
-}
+impl ImageOptimizer {
+    /// Creates a new ImageOptimizer.
+    /// api_handler_path is the path where the image handler is located in the server router.
+    /// Parallelism denotes the number of images that can be created at once.
+    /// Useful to limit to prevent overloading the server.
+    pub fn new(
+        api_handler_path: impl Into<String>,
+        root_file_path: impl Into<String>,
+        parallelism: usize,
+    ) -> Self {
+        let semaphore = tokio::sync::Semaphore::new(parallelism);
+        let semaphore = std::sync::Arc::new(semaphore);
+        Self {
+            api_handler_path: api_handler_path.into(),
+            root_file_path: root_file_path.into(),
+            semaphore,
+            cache: std::sync::Arc::new(dashmap::DashMap::new()),
+        }
+    }
 
-impl CachedImage {
-    pub(crate) fn get_url_encoded(&self) -> String {
-        // TODO: make this configurable?
-        let image_cache_path = "/cache/image";
-        let params = serde_qs::to_string(&self).unwrap();
-        format!("{}?{}", image_cache_path, params)
+    /// Creates a context function to provide the optimizer.
+    ///
+    /// ```
+    /// use leptos_image::*;
+    /// use leptos::*;
+    /// use axum::*;
+    /// use axum::routing::post;
+    /// use leptos_axum::{generate_route_list, handle_server_fns, LeptosRoutes};
+    ///
+    /// #[cfg(feature = "ssr")]
+    /// async fn your_main_function() {
+    ///
+    ///   let options = get_configuration(None).await.unwrap().leptos_options;
+    ///   let optimizer = ImageOptimizer::new(options.site_root.clone(), 1);
+    ///   let state = AppState {leptos_options: options, optimizer: optimizer.clone() };
+    ///   let routes = generate_route_list(App);
+    ///
+    ///   let router: Router<()> = Router::new()
+    ///    .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+    ///    .image_cache_route(&state)
+    ///    // Use provide_context()
+    ///    .leptos_routes_with_context(&state, routes, optimizer.provide_context(), App)
+    ///    .with_state(state);
+    ///
+    ///   // Rest of your function ...
+    /// }
+    ///
+    /// // Composite App State with the optimizer and leptos options.
+    /// #[derive(Clone, axum::extract::FromRef)]
+    /// struct AppState {
+    ///   leptos_options: leptos::LeptosOptions,
+    ///   optimizer: leptos_image::ImageOptimizer,
+    /// }
+    ///
+    /// #[component]
+    /// fn App() -> impl IntoView {
+    ///   ()
+    /// }
+    /// ```
+    pub fn provide_context(&self) -> impl Fn() + 'static + Clone + Send {
+        let optimizer = self.clone();
+        move || {
+            leptos::provide_context(optimizer.clone());
+        }
+    }
+
+    pub(crate) async fn create_image(
+        &self,
+        cache_image: &CachedImage,
+    ) -> Result<bool, CreateImageError> {
+        let root = self.root_file_path.as_str();
+        {
+            let option = if let CachedImageOption::Resize(_) = cache_image.option {
+                "Resize"
+            } else {
+                "Blur"
+            };
+            tracing::debug!("Creating {option} image for {}", &cache_image.src);
+        }
+
+        let relative_path_created = self.get_file_path(&cache_image);
+
+        let save_path = path_from_segments(vec![root, &relative_path_created]);
+        let absolute_src_path = path_from_segments(vec![root, &cache_image.src]);
+
+        if file_exists(&save_path).await {
+            Ok(false)
+        } else {
+            let _ = self
+                .semaphore
+                .acquire()
+                .await
+                .expect("Failed to acquire semaphore");
+            let task = tokio::task::spawn_blocking({
+                let option = cache_image.option.clone();
+                move || create_optimized_image(option, absolute_src_path, save_path)
+            });
+
+            match task.await {
+                Err(join_error) => Err(CreateImageError::JoinError(join_error)),
+                Ok(Err(err)) => Err(err),
+                Ok(Ok(_)) => Ok(true),
+            }
+        }
     }
 
     #[cfg(feature = "ssr")]
-    pub fn get_file_path(&self) -> String {
+    pub(crate) fn get_file_path_from_root(&self, cache_image: &CachedImage) -> String {
+        let path = path_from_segments(vec![
+            self.root_file_path.as_ref(),
+            &self.get_file_path(cache_image),
+        ]);
+        path.as_path().to_string_lossy().to_string()
+    }
+
+    pub(crate) fn get_file_path(&self, cache_image: &CachedImage) -> String {
         use base64::{engine::general_purpose, Engine as _};
         // I'm worried this name will become too long.
         // names are limited to 255 bytes on most filesystems.
 
-        let encode = serde_qs::to_string(&self).unwrap();
+        let encode = serde_qs::to_string(&cache_image).unwrap();
         let encode = general_purpose::STANDARD.encode(encode);
 
-        let mut path = path_from_segments(vec!["cache/image", &encode, &self.src]);
+        let mut path = path_from_segments(vec!["cache/image", &encode, &cache_image.src]);
 
-        if let CachedImageOption::Resize { .. } = self.option {
+        if let CachedImageOption::Resize { .. } = cache_image.option {
             path.set_extension("webp");
         } else {
             path.set_extension("svg");
         };
 
         path.as_path().to_string_lossy().to_string()
-    }
-
-    // TODO: Fix this. Super Yuck.
-    #[allow(dead_code)]
-    #[cfg(feature = "ssr")]
-    pub(crate) fn from_file_path(path: &str) -> Option<Self> {
-        use base64::{engine::general_purpose, Engine as _};
-        path.split('/')
-            .filter_map(|s| {
-                general_purpose::STANDARD
-                    .decode(s)
-                    .ok()
-                    .and_then(|s| String::from_utf8(s).ok())
-            })
-            .find_map(|encoded| serde_qs::from_str(&encoded).ok())
-    }
-
-    #[cfg(feature = "ssr")]
-    pub(crate) fn get_file_path_from_root(&self, root: &str) -> String {
-        let path = path_from_segments(vec![root, &self.get_file_path()]);
-        path.as_path().to_string_lossy().to_string()
-    }
-
-    #[cfg(feature = "ssr")]
-    pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
-        let url = url.split('?').filter(|s| *s != "?").last().unwrap_or(url);
-        let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(url);
-        result
-    }
-
-    /// Returns the relative path as a string of the created image (relative from `root`).
-    /// Also returns a bool indicating if the image was created (rather than already existing).
-    #[cfg(feature = "ssr")]
-    pub async fn create_image(&self, root: &str) -> Result<(String, bool), CreateImageError> {
-        let option = if let CachedImageOption::Resize(_) = self.option {
-            "Resize"
-        } else {
-            "Blur"
-        };
-        log::debug!("Creating {option} image for {}", &self.src);
-        let relative_path_created = self.get_file_path();
-
-        let save_path = path_from_segments(vec![root, &relative_path_created]);
-        let absolute_src_path = path_from_segments(vec![root, &self.src]);
-
-        if file_exists(&save_path).await {
-            Ok((relative_path_created, false))
-        } else {
-            let task = tokio::task::spawn_blocking({
-                let config = self.clone();
-                move || create_optimized_image(config.option, absolute_src_path, save_path)
-            });
-
-            match task.await {
-                Err(join_error) => Err(CreateImageError::JoinError(join_error)),
-                Ok(Err(err)) => Err(err),
-                Ok(Ok(_)) => Ok((relative_path_created, true)),
-            }
-        }
     }
 }
 
@@ -155,7 +163,7 @@ where
             height,
             quality,
         }) => {
-            let img = image::open(source_path).map_err(|e| CreateImageError::ImageError(e))?;
+            let img = image::open(source_path)?;
             let new_img = img.resize(
                 width,
                 height,
@@ -166,13 +174,16 @@ where
             let encoder: Encoder = Encoder::from_image(&new_img).unwrap();
             // Encode the image at a specified quality 0-100
             let webp: WebPMemory = encoder.encode(quality as f32);
-            create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
-            std::fs::write(save_path, &*webp).map_err(|e| CreateImageError::IOError(e))
+            create_nested_if_needed(&save_path)?;
+            std::fs::write(save_path, &*webp)?;
+
+            Ok(())
         }
         CachedImageOption::Blur(blur) => {
             let svg = create_image_blur(source_path, blur)?;
-            create_nested_if_needed(&save_path).map_err(|e| CreateImageError::IOError(e))?;
-            std::fs::write(save_path, &*svg).map_err(|e| CreateImageError::IOError(e))
+            create_nested_if_needed(&save_path)?;
+            std::fs::write(save_path, &*svg)?;
+            Ok(())
         }
     }
 }
@@ -224,6 +235,120 @@ where
     Ok(svg)
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+pub struct CachedImage {
+    pub(crate) src: String,
+    pub(crate) option: CachedImageOption,
+}
+
+impl std::fmt::Display for CachedImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.option {
+            CachedImageOption::Resize(resize) => write!(
+                f,
+                "ImageResize {} ({}x{} @ {}% quality)",
+                self.src, resize.width, resize.height, resize.quality,
+            ),
+            CachedImageOption::Blur(_) => write!(f, "ImageBlur {}", self.src),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+pub(crate) enum CachedImageOption {
+    #[serde(rename = "r")]
+    Resize(Resize),
+    #[serde(rename = "b")]
+    Blur(Blur),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+#[serde(rename = "r")]
+pub(crate) struct Resize {
+    #[serde(rename = "w")]
+    pub width: u32,
+    #[serde(rename = "h")]
+    pub height: u32,
+    #[serde(rename = "q")]
+    pub quality: u8,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+#[serde(rename = "b")]
+pub(crate) struct Blur {
+    #[serde(rename = "w")]
+    pub width: u32,
+    #[serde(rename = "h")]
+    pub height: u32,
+    #[serde(rename = "sw")]
+    pub svg_width: u32,
+    #[serde(rename = "sh")]
+    pub svg_height: u32,
+    #[serde(rename = "s")]
+    pub sigma: u8,
+}
+
+#[cfg(feature = "ssr")]
+#[derive(Debug, thiserror::Error)]
+pub enum CreateImageError {
+    // Unexpected(String),
+    #[error("Image Error: {0}")]
+    ImageError(#[from] image::ImageError),
+    #[error("Join Error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
+}
+
+impl CachedImage {
+    pub(crate) fn get_url_encoded(&self, handler_path: impl AsRef<str>) -> String {
+        let params = serde_qs::to_string(&self).unwrap();
+        format!("{}?{}", handler_path.as_ref(), params)
+    }
+
+    #[cfg(feature = "ssr")]
+    pub(crate) fn get_file_path(&self) -> String {
+        use base64::{engine::general_purpose, Engine as _};
+        // I'm worried this name will become too long.
+        // names are limited to 255 bytes on most filesystems.
+
+        let encode = serde_qs::to_string(&self).unwrap();
+        let encode = general_purpose::STANDARD.encode(encode);
+
+        let mut path = path_from_segments(vec!["cache/image", &encode, &self.src]);
+
+        if let CachedImageOption::Resize { .. } = self.option {
+            path.set_extension("webp");
+        } else {
+            path.set_extension("svg");
+        };
+
+        path.as_path().to_string_lossy().to_string()
+    }
+
+    #[allow(dead_code)]
+    #[cfg(feature = "ssr")]
+    // TODO: Fix this. Super Yuck.
+    pub(crate) fn from_file_path(path: &str) -> Option<Self> {
+        use base64::{engine::general_purpose, Engine as _};
+        path.split('/')
+            .filter_map(|s| {
+                general_purpose::STANDARD
+                    .decode(s)
+                    .ok()
+                    .and_then(|s| String::from_utf8(s).ok())
+            })
+            .find_map(|encoded| serde_qs::from_str(&encoded).ok())
+    }
+
+    #[cfg(feature = "ssr")]
+    pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
+        let url = url.split('?').filter(|s| *s != "?").last().unwrap_or(url);
+        let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(url);
+        result
+    }
+}
+
 #[cfg(feature = "ssr")]
 fn path_from_segments(segments: Vec<&str>) -> std::path::PathBuf {
     segments
@@ -270,7 +395,7 @@ mod optimizer_tests {
             }),
         };
 
-        let encoded = img.get_url_encoded();
+        let encoded = img.get_url_encoded("/cache/image/test");
         let decoded: CachedImage = CachedImage::from_url_encoded(&encoded).unwrap();
 
         dbg!(encoded);
