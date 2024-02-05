@@ -1,13 +1,9 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::{
-        routing::{get, post},
-        Router,
-    };
+    use axum::{routing::post, Router};
     use leptos::*;
     use leptos_axum::{generate_route_list, handle_server_fns, LeptosRoutes};
-    use leptos_image::ImageOptimizer;
     use leptos_image::*;
     use start_axum::app::*;
     use start_axum::fileserv::file_and_error_handler;
@@ -43,7 +39,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/*fn_name", post(handle_server_fns))
         // Add a handler for serving the cached images.
-        .route("/cache/image", get(image_cache_handler))
+        .image_cache_route(&state)
         // Provide the optimizer to leptos context.
         .leptos_routes_with_context(&state, routes, state.optimizer.provide_context(), App)
         .fallback(file_and_error_handler)

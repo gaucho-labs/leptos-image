@@ -27,7 +27,6 @@ impl ImageOptimizer {
     /// Creates a context function to provide the optimizer.
     ///
     /// ```
-    ///  
     /// use leptos_image::*;
     /// use leptos::*;
     /// use axum::*;
@@ -36,23 +35,33 @@ impl ImageOptimizer {
     ///
     /// #[cfg(feature = "ssr")]
     /// async fn your_main_function() {
+    ///
     ///   let options = get_configuration(None).await.unwrap().leptos_options;
     ///   let optimizer = ImageOptimizer::new(options.site_root.clone(), 1);
+    ///   let state = AppState {leptos_options: options, optimizer: optimizer.clone() };
     ///   let routes = generate_route_list(App);
     ///
     ///   let router: Router<()> = Router::new()
     ///    .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
-    ///    .leptos_routes_with_context(&options, routes, optimizer.provide_context(), App)
-    ///    .with_state(options);
+    ///    .image_cache_route(&state)
+    ///    // Use provide_context()
+    ///    .leptos_routes_with_context(&state, routes, optimizer.provide_context(), App)
+    ///    .with_state(state);
     ///
     ///   // Rest of your function ...
+    /// }
+    ///
+    /// // Composite App State with the optimizer and leptos options.
+    /// #[derive(Clone, axum::extract::FromRef)]
+    /// struct AppState {
+    ///   leptos_options: leptos::LeptosOptions,
+    ///   optimizer: leptos_image::ImageOptimizer,
     /// }
     ///
     /// #[component]
     /// fn App() -> impl IntoView {
     ///   ()
     /// }
-    ///
     /// ```
     pub fn provide_context(&self) -> impl Fn() + 'static + Clone + Send {
         let optimizer = self.clone();
