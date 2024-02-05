@@ -40,6 +40,6 @@ ssr = [
     "leptos_router/ssr", "leptos_meta/ssr" , "leptos/ssr",
     "dep:webp", "dep:image", 
     "dep:tokio", "dep:axum", "dep:tower", "dep:tower-http",
-    "dep:futures", "dep:glob"
+    "dep:futures", "dep:glob", 
 ]
 hydrate = [ "dep:web-sys","leptos/hydrate", "leptos_router/hydrate" ]

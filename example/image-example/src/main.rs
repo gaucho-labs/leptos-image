@@ -42,8 +42,10 @@ async fn main() {
     // build our application with a route
     let app = Router::new()
         .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
+        // Add a handler for serving the cached images.
         .route("/cache/image", get(image_cache_handler))
-        .leptos_routes(&state, routes, App)
+        // Provide the optimizer to leptos context.
+        .leptos_routes_with_context(&state, routes, state.optimizer.provide_context(), App)
         .fallback(file_and_error_handler)
         .with_state(state);
 

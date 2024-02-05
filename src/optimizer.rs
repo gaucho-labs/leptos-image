@@ -4,113 +4,12 @@ use serde::{Deserialize, Serialize};
  * Service for creating cached/optimized images!
  */
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub struct CachedImage {
-    pub src: String,
-    pub option: CachedImageOption,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub enum CachedImageOption {
-    #[serde(rename = "r")]
-    Resize(Resize),
-    #[serde(rename = "b")]
-    Blur(Blur),
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub struct Resize {
-    #[serde(rename = "w")]
-    pub width: u32,
-    #[serde(rename = "h")]
-    pub height: u32,
-    #[serde(rename = "q")]
-    pub quality: u8,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
-pub struct Blur {
-    #[serde(rename = "w")]
-    pub width: u32,
-    #[serde(rename = "h")]
-    pub height: u32,
-    #[serde(rename = "sw")]
-    pub svg_width: u32,
-    #[serde(rename = "sh")]
-    pub svg_height: u32,
-    #[serde(rename = "s")]
-    pub sigma: u8,
-}
-
-#[cfg(feature = "ssr")]
-#[derive(Debug, thiserror::Error)]
-pub enum CreateImageError {
-    // Unexpected(String),
-    #[error("Image Error: {0}")]
-    ImageError(#[from] image::ImageError),
-    #[error("Join Error: {0}")]
-    JoinError(#[from] tokio::task::JoinError),
-    #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
-}
-
-impl CachedImage {
-    pub(crate) fn get_url_encoded(&self) -> String {
-        // TODO: make this configurable?
-        let image_cache_path = "/cache/image";
-        let params = serde_qs::to_string(&self).unwrap();
-        format!("{}?{}", image_cache_path, params)
-    }
-
-    #[cfg(feature = "ssr")]
-    pub fn get_file_path(&self) -> String {
-        use base64::{engine::general_purpose, Engine as _};
-        // I'm worried this name will become too long.
-        // names are limited to 255 bytes on most filesystems.
-
-        let encode = serde_qs::to_string(&self).unwrap();
-        let encode = general_purpose::STANDARD.encode(encode);
-
-        let mut path = path_from_segments(vec!["cache/image", &encode, &self.src]);
-
-        if let CachedImageOption::Resize { .. } = self.option {
-            path.set_extension("webp");
-        } else {
-            path.set_extension("svg");
-        };
-
-        path.as_path().to_string_lossy().to_string()
-    }
-
-    #[allow(dead_code)]
-    #[cfg(feature = "ssr")]
-    // TODO: Fix this. Super Yuck.
-    pub(crate) fn from_file_path(path: &str) -> Option<Self> {
-        use base64::{engine::general_purpose, Engine as _};
-        path.split('/')
-            .filter_map(|s| {
-                general_purpose::STANDARD
-                    .decode(s)
-                    .ok()
-                    .and_then(|s| String::from_utf8(s).ok())
-            })
-            .find_map(|encoded| serde_qs::from_str(&encoded).ok())
-    }
-
-    #[cfg(feature = "ssr")]
-    pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
-        let url = url.split('?').filter(|s| *s != "?").last().unwrap_or(url);
-        let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(url);
-        result
-    }
-}
-
 #[cfg(feature = "ssr")]
 #[derive(Debug, Clone)]
 pub struct ImageOptimizer {
-    root_file_path: String,
-    // cache_prefix: String,
-    semaphore: std::sync::Arc<tokio::sync::Semaphore>,
+    pub(crate) root_file_path: String,
+    pub(crate) semaphore: std::sync::Arc<tokio::sync::Semaphore>,
+    pub(crate) cache: std::sync::Arc<dashmap::DashMap<CachedImage, String>>,
 }
 
 #[cfg(feature = "ssr")]
@@ -121,10 +20,21 @@ impl ImageOptimizer {
         Self {
             root_file_path,
             semaphore,
+            cache: std::sync::Arc::new(dashmap::DashMap::new()),
         }
     }
 
-    pub async fn create_image(&self, cache_image: &CachedImage) -> Result<bool, CreateImageError> {
+    pub fn provide_context(&self) -> impl Fn() + 'static + Clone + Send {
+        let optimizer = self.clone();
+        move || {
+            leptos::provide_context(optimizer.clone());
+        }
+    }
+
+    pub(crate) async fn create_image(
+        &self,
+        cache_image: &CachedImage,
+    ) -> Result<bool, CreateImageError> {
         let root = self.root_file_path.as_str();
         {
             let option = if let CachedImageOption::Resize(_) = cache_image.option {
@@ -170,7 +80,7 @@ impl ImageOptimizer {
         path.as_path().to_string_lossy().to_string()
     }
 
-    pub fn get_file_path(&self, cache_image: &CachedImage) -> String {
+    pub(crate) fn get_file_path(&self, cache_image: &CachedImage) -> String {
         use base64::{engine::general_purpose, Engine as _};
         // I'm worried this name will become too long.
         // names are limited to 255 bytes on most filesystems.
@@ -277,6 +187,107 @@ where
     );
 
     Ok(svg)
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+pub struct CachedImage {
+    pub(crate) src: String,
+    pub(crate) option: CachedImageOption,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+pub(crate) enum CachedImageOption {
+    #[serde(rename = "r")]
+    Resize(Resize),
+    #[serde(rename = "b")]
+    Blur(Blur),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+pub(crate) struct Resize {
+    #[serde(rename = "w")]
+    pub width: u32,
+    #[serde(rename = "h")]
+    pub height: u32,
+    #[serde(rename = "q")]
+    pub quality: u8,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize, Hash)]
+pub(crate) struct Blur {
+    #[serde(rename = "w")]
+    pub width: u32,
+    #[serde(rename = "h")]
+    pub height: u32,
+    #[serde(rename = "sw")]
+    pub svg_width: u32,
+    #[serde(rename = "sh")]
+    pub svg_height: u32,
+    #[serde(rename = "s")]
+    pub sigma: u8,
+}
+
+#[cfg(feature = "ssr")]
+#[derive(Debug, thiserror::Error)]
+pub enum CreateImageError {
+    // Unexpected(String),
+    #[error("Image Error: {0}")]
+    ImageError(#[from] image::ImageError),
+    #[error("Join Error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
+}
+
+impl CachedImage {
+    pub(crate) fn get_url_encoded(&self) -> String {
+        // TODO: make this configurable?
+        let image_cache_path = "/cache/image";
+        let params = serde_qs::to_string(&self).unwrap();
+        format!("{}?{}", image_cache_path, params)
+    }
+
+    #[cfg(feature = "ssr")]
+    pub(crate) fn get_file_path(&self) -> String {
+        use base64::{engine::general_purpose, Engine as _};
+        // I'm worried this name will become too long.
+        // names are limited to 255 bytes on most filesystems.
+
+        let encode = serde_qs::to_string(&self).unwrap();
+        let encode = general_purpose::STANDARD.encode(encode);
+
+        let mut path = path_from_segments(vec!["cache/image", &encode, &self.src]);
+
+        if let CachedImageOption::Resize { .. } = self.option {
+            path.set_extension("webp");
+        } else {
+            path.set_extension("svg");
+        };
+
+        path.as_path().to_string_lossy().to_string()
+    }
+
+    #[allow(dead_code)]
+    #[cfg(feature = "ssr")]
+    // TODO: Fix this. Super Yuck.
+    pub(crate) fn from_file_path(path: &str) -> Option<Self> {
+        use base64::{engine::general_purpose, Engine as _};
+        path.split('/')
+            .filter_map(|s| {
+                general_purpose::STANDARD
+                    .decode(s)
+                    .ok()
+                    .and_then(|s| String::from_utf8(s).ok())
+            })
+            .find_map(|encoded| serde_qs::from_str(&encoded).ok())
+    }
+
+    #[cfg(feature = "ssr")]
+    pub(crate) fn from_url_encoded(url: &str) -> Result<CachedImage, serde_qs::Error> {
+        let url = url.split('?').filter(|s| *s != "?").last().unwrap_or(url);
+        let result: Result<CachedImage, serde_qs::Error> = serde_qs::from_str(url);
+        result
+    }
 }
 
 #[cfg(feature = "ssr")]

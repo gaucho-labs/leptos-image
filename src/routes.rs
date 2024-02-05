@@ -75,10 +75,9 @@ pub mod handlers {
         uri: Uri,
     ) -> Result<Option<Uri>, CreateImageError> {
         let url = uri.to_string();
-        let maybe_cache_image = CachedImage::from_url_encoded(&url).ok();
 
         let cache_image = {
-            if let Some(img) = maybe_cache_image {
+            if let Some(img) = CachedImage::from_url_encoded(&url).ok() {
                 let result = optimizer.create_image(&img).await;
 
                 if let Ok(true) = result {
