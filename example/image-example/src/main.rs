@@ -9,12 +9,13 @@ async fn main() {
     use start_axum::fileserv::file_and_error_handler;
     use tokio::net::TcpListener;
 
-    // simple_logger::init_with_level(log::Level::Info).expect("couldn't initialize logging");
+    // Composite App State with the optimizer and leptos options.
     #[derive(Clone, axum::extract::FromRef)]
     struct AppState {
         leptos_options: leptos::LeptosOptions,
         optimizer: leptos_image::ImageOptimizer,
     }
+    simple_logger::init_with_level(log::Level::Info).expect("couldn't initialize logging");
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
@@ -35,7 +36,7 @@ async fn main() {
         optimizer: ImageOptimizer::new(root, 1),
     };
 
-    // build our application with a route
+    // Build Router.
     let app = Router::new()
         .route("/api/*fn_name", post(handle_server_fns))
         // Add a handler for serving the cached images.
