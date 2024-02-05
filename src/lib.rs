@@ -1,9 +1,13 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-//! # Leptos Image Optimizer
+//! # Leptos Image
 //!
-//! Crafted with inspiration from Next.js, Leptos Image Optimizer enhances the standard HTML `<img>` element with automatic image optimization features, significantly improving web performance and user experience.
+//! > Crafted with inspiration from Next.js
+//!
+//! Images make a substantial impact on the size and performance of a website, so why not get them right?
+//!
+//! Enter Leptos `<Image/>`, a component that enhances the standard HTML `<img>` element with automatic image optimization features.
 //!
 //! ## Features
 //!
@@ -46,7 +50,7 @@
 //! #[cfg(feature = "ssr")]
 //! async fn your_main_function() {
 //!     let options = get_configuration(None).await.unwrap().leptos_options;
-//!     let optimizer = ImageOptimizer::new(options.site_root.clone(), 1);
+//!     let optimizer = ImageOptimizer::new("/__cache/image", options.site_root.clone(), 1);
 //!     let state = AppState { leptos_options: options, optimizer: optimizer.clone() };
 //!
 //!     let router: Router<()> = Router::new()
@@ -75,6 +79,26 @@
 //! ```
 //!
 //! This setup ensures your Leptos application is fully equipped to deliver optimized images, enhancing the performance and user experience of your web projects.
+//!
+//! Now you can use the Image Component anywhere in your app!
+
+//! ```
+//! use leptos::*;
+//! use leptos_image::*;
+//!
+//! #[component]
+//! pub fn MyImage() -> impl IntoView {
+//!     view! {
+//!         <Image
+//!             src="/cute_ferris.png"
+//!             blur=true
+//!             width=750
+//!             height=500
+//!             quality=85
+//!         />
+//!     }
+//! }
+//! ```
 //!
 
 mod image;

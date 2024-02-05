@@ -9,108 +9,104 @@ Images make a substantial impact on the size and performance of a website, so wh
 
 Enter Leptos `<Image/>`, a component that enhances the standard HTML `<img>` element with automatic image optimization features.
 
-- **Size Optimization**: Resize images, and use modern `.webp` format for optimal size and quality.
-- **Low-Quality Image Placeholders (LQIP)**: With this feature, the Image component embeds SVGs, extracted from the original images, into the initial SSR HTML. This placeholder is shown while the optimized version is loading.
-- **Faster Page Load**: Prioritize key images, such as those contributing to the Largest Contentful Paint (LCP) with the `priority` prop. The component adds a preload `<link>` to the document head, improving load times and enhancing your site's performance.
+## Features
+
+- **Size Optimization**: Automatically resizes images and converts them to the modern `.webp` format for an optimal balance of size and quality.
+- **Low-Quality Image Placeholders (LQIP)**: Embeds SVG placeholders extracted from original images into server-side rendered HTML, improving perceived performance during image loading.
+- **Faster Page Load**: Prioritizes critical images, impacting Largest Contentful Paint (LCP), with the `priority` prop by adding a preload `<link>` to the document head, accelerating load times.
 
 ## Installation
 
-Add leptos_image via cargo:
+To add `leptos_image` to your project, use cargo:
 
 ```bash
 cargo add leptos_image
 ```
 
-Add the SSR Feature under `[features]` in your `Cargo.toml`
+Enable the SSR feature in your `Cargo.toml`:
 
 ```toml
 [features]
 ssr = [
     "leptos_image/ssr",
-    # ...
- ]
+    # other dependencies...
+]
 ```
 
 ## Quick Start
 
-**REQUIRES SSR + AXUM**
+This requires SSR + Leptos Axum integration
 
-First add the provider to the base of your Leptos App.
+1. **Provide Image Context**: Initialize your Leptos application with `leptos_image::provide_image_context` to grant it read access to the image cache.
 
-```rust
-use leptos_image::*;
+    ```rust
+    use leptos::*;
 
-#[component]
-pub fn App(cx: Scope) -> impl IntoView {
-    provide_image_context(cx);
-
-    view!{cx,
-        // ...
+    #[component]
+    fn App() -> impl IntoView {
+        leptos_image::provide_image_context();
+        // Your app content here
     }
-}
-```
+    ```
 
-Next go to your SSR Main Function in `main.rs`
+2. **Axum State Configuration**: Incorporate `ImageOptimizer` into your app's Axum state.
 
-Before you create your router, call the `cache_app_images` function with the project root. This will cache all the images in your app, and generate the LQIPs.
+    ```rust
+    // Composite App State with the optimizer and leptos options.
+    #[derive(Clone, axum::extract::FromRef)]
+    struct AppState {
+        leptos_options: leptos::LeptosOptions,
+        optimizer: leptos_image::ImageOptimizer,
+    }
 
-If you have a lot of images, then you should probably only call this function in production because it will delay your server startup.
+    ```
 
-If you don't include this function, then image caching will happen at runtime.
+3. **Integrate with Router**: Ensure your `ImageOptimizer` is available during SSR of your Leptos App.
+    - Add Image Cache Route: Use `image_cache_route` to serve cached images.
+    - Add `ImageOptimizer` to your App state.
+    - Add `ImageOptimizer` to Leptos Context: Provide the optimizer to Leptos context using `leptos_routes_with_context`.
 
-```rust
+    ```rust
+    use leptos::*;
+    use leptos_axum::*;
+    use leptos_image::*;
 
-use leptos::*;
-use leptos_image::*;
+    async fn main() {
+        // Get Leptos options from configuration.
+        let conf = get_configuration(None).await.unwrap();
+        let leptos_options = conf.leptos_options;
+        let root = leptos_options.site_root.clone();
 
-let conf = get_configuration(None).await.unwrap();
-let leptos_options = conf.leptos_options;
-let root = leptos_options.site_root.clone();
+        // Create App State with ImageOptimizer.
+        let state = AppState {
+            leptos_options,
+            optimizer: ImageOptimizer::new("/__cache/image", root, 1),
+        };
 
-use leptos_image::cache::cache_app_images;
+        // Create your router
+        let app = Router::new()
+            .route("/api/*fn_name", post(handle_server_fns))
+             // Add a handler for serving the cached images.
+            .image_cache_route(&state)
+            // Provide the optimizer to leptos context.
+            .leptos_routes_with_context(&state, routes, state.optimizer.provide_context(), App)
+            .fallback(fallback_handler)
+            // Provide the state to the app.
+            .with_state(state);
+    }
+    ```
 
-cache_app_images(root, |cx: Scope| view! {cx, <App/>}, 2, || (), || ())
-    .await
-    .expect("Failed to cache images");
 
-```
+A full working example is available in the [examples](./example/start-axum) directory.
+### Example Implementation
 
-Next add an endpoint to your router that serves the cached images. For now, the endpoint path must be `/cache/image` and is not configurable
-
-```rust
-
-use axum::{routing::{get, post}, Router};
-
-let router = ...
-
-router.route("/cache/image", get(image_cache_handler));
-
-```
-
-The final router should look something like this!
-
-```rust
-
-let router = Router::new()
-        .route("/api/*fn_name", post(leptos_axum::handle_server_fns))
-        .leptos_routes(&leptos_options, routes, |cx| {
-            view! { cx,
-                <App/>
-            }
-        })
-        // Here's the new route!
-        .route("/cache/image", get(image_cache_handler))
-        .with_state(leptos_options);
-
-```
 
 Now you can use the Image Component anywhere in your app!
 
 ```rust
 #[component]
-pub fn MyPage(cx: Scope) -> impl IntoView {
-    view! { cx,
-        <Title text="This Rust thing is pretty great"/>
+pub fn MyImage() -> impl IntoView {
+    view! {
         <Image
             src="/cute_ferris.png"
             blur=true
@@ -122,10 +118,4 @@ pub fn MyPage(cx: Scope) -> impl IntoView {
 }
 ```
 
-And that's it. You're all set to use the Image Component.
-
-## Caveats:
-
-- Images will only be retrieved from routes that are non-dynamic (meaning not `api/post/:id` in Route path).
-- Images can take a few seconds to optimize, meaning first startup of server will be slower.
-- Actix Support is coming soon!
+This setup ensures your Leptos application is fully equipped to deliver optimized images, enhancing the performance and user experience of your web projects.

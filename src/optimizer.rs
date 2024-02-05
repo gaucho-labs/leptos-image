@@ -44,7 +44,7 @@ impl ImageOptimizer {
     /// async fn your_main_function() {
     ///
     ///   let options = get_configuration(None).await.unwrap().leptos_options;
-    ///   let optimizer = ImageOptimizer::new(options.site_root.clone(), 1);
+    ///   let optimizer = ImageOptimizer::new("/__cache/image", options.site_root.clone(), 1);
     ///   let state = AppState {leptos_options: options, optimizer: optimizer.clone() };
     ///   let routes = generate_route_list(App);
     ///
@@ -402,7 +402,7 @@ mod optimizer_tests {
         assert!(img == decoded);
     }
 
-    const TEST_IMAGE: &str = "example/image-example/public/cute_ferris.png";
+    const TEST_IMAGE: &str = "./example/start-axum/public/cute_ferris.png";
 
     #[test]
     fn file_path() {
