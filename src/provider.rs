@@ -8,12 +8,11 @@ use leptos::*;
 /// Example
 ///
 /// ```
-/// use leptos_image::*;
 /// use leptos::*;
 ///
 /// #[component]
 /// pub fn App() -> impl IntoView {
-///     provide_image_context();
+///     leptos_image::provide_image_context();
 ///
 ///     view!{
 ///       <div/>
